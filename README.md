@@ -55,6 +55,8 @@ origami optimize [candidates ...]   # Pareto front over scaffold sequences
 origami frustration                 # color helices/bases by off-target density
 origami network                     # off-target interaction graph (JSON)
 origami envelope [density 180]      # lipid-handle placement + bilayer shell
+origami shape [n_ensemble 8]        # DGNN 3D shape + per-bp flexibility (RMSF)
+origami evolve [generations 200]    # Sakana-style recursive-improvement loop
 origami report <path.html>          # scaffoldselector-style HTML report
 origami save <path> / load <path>
 origami mcp serve [port 7346] / stop
@@ -96,7 +98,7 @@ should ingest these the way vampnet ingests protein FMs.
 | deeptime VAMPnet (learn slow CVs / states) | kinetics/landscape | **— open gap —** no learned assembly-pathway MSM yet | **opportunity** |
 
 **Highest-leverage adds, in order:**
-1. **GNN shape predictor → fast forward model.** Lets `evolve.py` / `optimize.py` score *geometric* fidelity (does it fold to the target shape?) in real time, not just sequence off-target. The MarS-FM analog.
+1. **GNN shape predictor → fast forward model.** ✅ *scaffolded* — `shape.ShapePredictor` + `md/gnn_shape_modal.py` (the DGNN of Truong-Quoc et al., Nat Mater 2024) re-type the contact map as the DGNN graph and predict 3D shape + per-base-pair flexibility (RMSF), with a deterministic lattice fallback when no checkpoint is wired. Surfaced as `origami shape`; lets the loop score *geometric* fidelity, not just sequence off-target. The MarS-FM analog.
 2. **Evo 2 → FM-guided mutation operator.** ✅ *scaffolded* — `evolve.Evo2Mutator` + `md/evo2_modal.py` replace random point edits with Evo-2-scored / Evo-2-generated scaffold edits, fusing the FM likelihood with the off-target objective (`cost = off_target − fm_weight·loglik`); degrades to random mutation if no backend. Generates the "favourable scaffold regions" the Krasnogor paper mines biologically. The ESM analog, and the cleanest standalone contribution.
 3. **Diffusion generator → inverse-design source.** `evolve` proposes, the diffusion model refines + routes — a generate-and-verify loop mirroring vampnet's adaptive sampling.
 4. **AlphaFold3 → motif/interface validator** for aptamers, junctions, and the lipid-handle / antibody-conjugation sites.
@@ -123,7 +125,7 @@ larger map. Lines worth tracking / building toward:
 
 - Shirt-Ediss, Torelli, Navarro & Krasnogor. *Optimising DNA origami assembly by reducing off-target interactions.* Nat Commun (2026). https://www.nature.com/articles/s41467-026-73387-4
 - *De novo design of DNA origami with a generative diffusion model.* Nat Commun (2026). https://www.nature.com/articles/s41467-026-73578-z
-- *Prediction of DNA origami shape using graph neural network.* Nat Mater (2024). https://www.nature.com/articles/s41563-024-01846-8
+- Truong-Quoc, Lee, Kim & Kim. *Prediction of DNA origami shape using graph neural network.* Nat Mater 23, 984–992 (2024). https://www.nature.com/articles/s41563-024-01846-8
 - Brixi et al. *Genome modeling and design across all domains of life with Evo 2.* bioRxiv (2025). https://www.biorxiv.org/content/10.1101/2025.02.18.638918v1
 - Douglas et al. *Rapid prototyping of 3D DNA-origami shapes with caDNAno.* Nucleic Acids Res (2009).
 - Perrault & Shih. *Virus-Inspired Membrane Encapsulation of DNA Nanostructures To Achieve In Vivo Stability.* ACS Nano (2014). https://pubs.acs.org/doi/10.1021/nn5011914

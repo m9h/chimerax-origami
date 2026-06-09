@@ -12,6 +12,7 @@ from chimerax.core.commands import (
     register,
     IntArg,
     FloatArg,
+    BoolArg,
     StringArg,
     EnumOf,
     OpenFileNameArg,
@@ -125,6 +126,30 @@ def cmd_envelope(session, density=180.0):
     structure = cm.__dict__.get("structure")
     return envelope.design_envelope(session, cm, handle_density_nm2=float(density),
                                     structure=structure)
+
+
+def cmd_shape(session, n_ensemble=8, target=None, color=True):
+    """Predict the 3D shape + per-base-pair flexibility (RMSF) of the active
+    design with the DGNN geometric forward model (Truong-Quoc et al.,
+    Nat Mater 2024). Falls back to a deterministic lattice placement when no
+    DGNN backend is configured. Returns the shape summary dict.
+    """
+    from . import contactmap, shape
+    cm = contactmap.design_get(session)
+    target_coords = None
+    if target:
+        import numpy as np
+        d = np.load(target)
+        target_coords = d["coords"] if "coords" in d.files else d[d.files[0]]
+    # The bundle uses the deterministic fallback by default; advanced users
+    # pass a DGNNBackend (md/gnn_shape_modal.py) from a script.
+    result = shape.predict_shape(cm, backend=None, n_ensemble=int(n_ensemble),
+                                 target_coords=target_coords)
+    structure = cm.__dict__.get("structure")
+    if color and structure is not None:
+        from . import viz
+        viz.color_by_flexibility(session, result, structure=structure)
+    return result.summary()
 
 
 def cmd_evolve(session, generations=200, k=8, point_rate=0.02, seed=0):
@@ -242,6 +267,14 @@ _DESC_ENVELOPE = CmdDesc(
               "180 nm^2), carrier staples, predicted in-vivo effects. "
               "Example: origami envelope density 180"),
 )
+_DESC_SHAPE = CmdDesc(
+    keyword=[("n_ensemble", IntArg), ("target", OpenFileNameArg), ("color", BoolArg)],
+    synopsis=("Predict the 3D shape + per-base-pair flexibility (RMSF) of the "
+              "active design with the DGNN geometric forward model (Truong-Quoc "
+              "et al., Nat Mater 2024); deterministic lattice fallback if no "
+              "backend. target is an optional .npz of target coords for an "
+              "RMSD. Example: origami shape n_ensemble 8 target cube.npz"),
+)
 _DESC_EVOLVE = CmdDesc(
     keyword=[("generations", IntArg), ("k", IntArg),
              ("point_rate", FloatArg), ("seed", IntArg)],
@@ -278,6 +311,7 @@ def register_commands(logger):
     register("origami frustration", _DESC_FRUSTRATION, cmd_frustration, logger=logger)
     register("origami network", _DESC_NETWORK, cmd_network, logger=logger)
     register("origami envelope", _DESC_ENVELOPE, cmd_envelope, logger=logger)
+    register("origami shape", _DESC_SHAPE, cmd_shape, logger=logger)
     register("origami evolve", _DESC_EVOLVE, cmd_evolve, logger=logger)
     register("origami report", _DESC_REPORT, cmd_report, logger=logger)
     register("origami save", _DESC_SAVE, cmd_save, logger=logger)

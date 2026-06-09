@@ -39,6 +39,35 @@ def _per_base_frustration(scored) -> Dict[int, float]:
     return acc
 
 
+def color_by_flexibility(session, shape_result, structure=None) -> dict:
+    """Color a nanostructure by per-base-pair flexibility (DGNN RMSF).
+
+    Twin of color_by_frustration, but the per-node scalar is the predicted
+    RMSF from src/shape.py rather than the off-target density. Cold = rigid,
+    hot = floppy. Returns a JSON-serializable summary.
+    """
+    rmsf = shape_result.rmsf
+    n = shape_result.n_nodes
+    hi = float(max(rmsf)) if n else 0.0
+    if hi <= 0.0:
+        return {"colored": False, "reason": "uniform/zero RMSF", "max_rmsf_nm": 0.0}
+
+    n_painted = 0
+    if structure is not None and hasattr(structure, "residues"):
+        residues = structure.residues
+        for i in range(min(n, len(residues))):
+            rgba = _heat_rgba(float(rmsf[i]) / hi)
+            for a in residues[i].atoms:
+                a.color = rgba
+            n_painted += 1
+    return {
+        "colored": structure is not None,
+        "n_nodes": n,
+        "n_painted": n_painted,
+        "max_rmsf_nm": round(hi, 3),
+    }
+
+
 def color_by_frustration(session, scored, structure=None) -> dict:
     """Color a nanostructure model by off-target frustration density.
 
