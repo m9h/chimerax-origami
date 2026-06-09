@@ -21,11 +21,16 @@ origami frustration
 #    (drop several candidate designs in examples/data/ to compare them)
 # origami optimize candidates examples/data/m13.json,examples/data/phix.json
 
-# 6. Recursive self-improvement: evolve a lower-frustration scaffold.
+# 6. Predict 3D shape + per-base-pair flexibility (DGNN geometric forward
+#    model; deterministic lattice fallback if no DGNN checkpoint is wired).
+#    Pass target <shape.npz> to also get a Kabsch RMSD to a target.
+origami shape n_ensemble 8
+
+# 7. Recursive self-improvement: evolve a lower-frustration scaffold.
 origami evolve generations 400 seed 0
 
-# 7. Plan a virus-inspired lipid-bilayer delivery envelope.
+# 8. Plan a virus-inspired lipid-bilayer delivery envelope.
 origami envelope density 180
 
-# 8. Emit the scaffoldselector-style HTML report.
+# 9. Emit the scaffoldselector-style HTML report.
 origami report examples/data/demo_report.html
