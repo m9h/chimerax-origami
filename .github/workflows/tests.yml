@@ -1,0 +1,49 @@
+name: tests
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+  workflow_dispatch: {}
+
+jobs:
+  pytest:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.12"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          # The numerical core (contactmap / score / optimize / evolve /
+          # report) is pure-python; tests/conftest.py stubs the ChimeraX
+          # runtime so no chimerax install is needed. numpy is only used by
+          # the .npz contactmap loader (not hit by the suite) but we install
+          # it so an added npz test would run. pytest is the only hard dep.
+          pip install pytest pytest-cov numpy
+
+      - name: Run pytest
+        run: |
+          # The ChimeraX-touching paths (viz / envelope / cmd / mcp_server)
+          # are exercised only inside ChimeraX; the suite covers the
+          # dependency-light numerical core.
+          pytest tests/ -v --cov=src --cov-report=term-missing
+
+      - name: Print Python + dep versions on failure
+        if: failure()
+        run: |
+          python --version
+          python -c "import numpy; print('numpy', numpy.__version__)"
+          python -c "import pytest; print('pytest', pytest.__version__)"

@@ -1,5 +1,8 @@
 # chimerax-origami
 
+[![tests](https://github.com/m9h/chimerax-origami/actions/workflows/tests.yml/badge.svg)](https://github.com/m9h/chimerax-origami/actions/workflows/tests.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
 Off-target-aware DNA-origami sequence design + lipid-envelope modeling,
 integrated into UCSF ChimeraX. The DNA-nanostructure **mirror image** of
 [`chimerax-vampnet`](../chimerax-vampnet): the two bundles share one
