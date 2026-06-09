@@ -1,0 +1,83 @@
+[build-system]
+requires = ["setuptools", "ChimeraX-BundleBuilder"]
+build-backend = "chimerax.bundle_builder.cx_pep517"
+
+[project]
+name = "ChimeraX-Origami"
+license = { text = "MIT" }
+authors = [{ name = "Morgan Hough" }]
+description = "Off-target-aware DNA-origami sequence design + lipid-envelope modeling in ChimeraX. The DNA-nanostructure mirror of chimerax-vampnet: same contact-map abstraction, applied to assembly-landscape frustration instead of protein conformational dynamics."
+dependencies = [
+  "ChimeraX-Core ~=1.10",
+  # numpy is already shipped with ChimeraX; the off-target scorer + Pareto
+  # selector are pure-numpy so we don't pull in heavyweight deps.
+]
+dynamic = ["classifiers", "requires-python", "version"]
+
+[project.readme]
+content-type = "text"
+text = """chimerax-origami brings off-target-aware DNA-origami sequence design into
+the ChimeraX visualization environment. Load a cadnano / scadnano / oxDNA design,
+convert it to a contact map, score the four classes of off-target interaction
+(Shirt-Ediss, Torelli, Navarro & Krasnogor, Nat Commun 2026), run a multi-objective
+Pareto selection over candidate scaffold sequences, and surface frustration hotspots
+plus an optional lipid-bilayer envelope (Perrault & Shih virus-inspired encapsulation)
+as ChimeraX models. Every command returns JSON-serializable data so an LLM agent driving
+ChimeraX via the MCP-server bundle can pilot a design-score-optimize loop.
+"""
+
+[project.urls]
+Home = "https://github.com/m9h/chimerax-origami"
+
+[tool.setuptools.dynamic]
+version = { attr = "src.__version__" }
+
+[tool.chimerax]
+min-session-version = 1
+max-session-version = 1
+categories = ["Nucleic Acids", "Structure Analysis"]
+classifiers = ["Development Status :: 3 - Alpha"]
+
+[tool.chimerax.command."origami load_design"]
+category = "Nucleic Acids"
+description = "Load a cadnano / scadnano / oxDNA design and convert it to a contact map"
+
+[tool.chimerax.command."origami score"]
+category = "Nucleic Acids"
+description = "Score the four classes of off-target interaction for the active design"
+
+[tool.chimerax.command."origami optimize"]
+category = "Nucleic Acids"
+description = "Multi-objective Pareto selection over candidate scaffold sequences"
+
+[tool.chimerax.command."origami frustration"]
+category = "Nucleic Acids"
+description = "Color the structure by per-region off-target (frustration) density"
+
+[tool.chimerax.command."origami network"]
+category = "Nucleic Acids"
+description = "Surface the off-target interaction map as a structured graph"
+
+[tool.chimerax.command."origami envelope"]
+category = "Nucleic Acids"
+description = "Place lipid-conjugate handles + model a wrapping bilayer (delivery vehicle)"
+
+[tool.chimerax.command."origami report"]
+category = "Nucleic Acids"
+description = "Emit a scaffoldselector-style HTML report of optimal scaffold sequences"
+
+[tool.chimerax.command."origami save"]
+category = "Nucleic Acids"
+description = "Save the scored design + Pareto front to disk"
+
+[tool.chimerax.command."origami load"]
+category = "Nucleic Acids"
+description = "Load a previously saved design + Pareto front"
+
+[tool.chimerax.command."origami mcp serve"]
+category = "Nucleic Acids"
+description = "Start the MCP bridge so MCP-capable LLM agents can drive this bundle"
+
+[tool.chimerax.command."origami mcp stop"]
+category = "Nucleic Acids"
+description = "Stop the MCP bridge"

@@ -1,0 +1,286 @@
+"""ChimeraX command registration for the chimerax-origami bundle.
+
+Every command returns a JSON-serializable dict (when it returns anything)
+so the ChimeraX MCP-server bundle can route results to an external LLM
+agent — identical contract to chimerax-vampnet. The numerical work lives in
+contactmap.py / score.py / optimize.py / viz.py / envelope.py / evolve.py;
+this module is the registration + dispatch layer.
+"""
+
+from chimerax.core.commands import (
+    CmdDesc,
+    register,
+    IntArg,
+    FloatArg,
+    StringArg,
+    EnumOf,
+    OpenFileNameArg,
+    SaveFileNameArg,
+    RepeatOf,
+)
+from chimerax.core.errors import UserError
+
+
+# Session-scoped state: the active scored design + last optimization result.
+_SCORED_KEY = "_origami_scored"
+_OPT_KEY = "_origami_opt"
+
+
+def _scored_get(session):
+    return getattr(session, _SCORED_KEY, None)
+
+
+def _scored_set(session, scored):
+    setattr(session, _SCORED_KEY, scored)
+
+
+# ----------------------------------------------------------------------
+# Command implementations.
+# ----------------------------------------------------------------------
+def cmd_load_design(session, path, format="auto"):
+    """Load a cadnano / scadnano / oxDNA / contactmap design and build its
+    contact map. Returns the design summary dict.
+    """
+    from . import contactmap
+    return contactmap.load_design(session, path, format)
+
+
+def cmd_score(session, k=8):
+    """Score the four off-target classes for the active design.
+
+    Returns {"name", "k", "objectives": {j1..j4, total}, "n_hotspots"}.
+    """
+    from . import contactmap, score
+    cm = contactmap.design_get(session)
+    scored = score.score(cm, k=int(k))
+    _scored_set(session, scored)
+    return scored.summary()
+
+
+def cmd_optimize(session, candidates=None, k=8):
+    """Multi-objective Pareto selection over candidate scaffold sequences.
+
+    candidates: list of paths to alternative designs (same routing, different
+    scaffold). If omitted, the active design is scored alone (trivial front).
+    Returns the Pareto-front graph dict.
+    """
+    from . import contactmap, optimize
+    cms = []
+    if candidates:
+        from . import contactmap as cmmod
+        for p in candidates:
+            cmmod.load_design(session, p, "auto")
+            cms.append(contactmap.design_get(session))
+    else:
+        cms = [contactmap.design_get(session)]
+    result = optimize.optimize(cms, k=int(k))
+    setattr(session, _OPT_KEY, result)
+    return result
+
+
+def cmd_frustration(session):
+    """Color the active structure (if any) by off-target frustration density.
+
+    Returns the frustration profile summary.
+    """
+    scored = _scored_get(session)
+    if scored is None:
+        raise UserError("no scored design — run `origami score` first")
+    from . import viz
+    structure = scored.cm.__dict__.get("structure")
+    return viz.color_by_frustration(session, scored, structure=structure)
+
+
+def cmd_network(session):
+    """Return the off-target interaction map as a structured graph.
+
+    Mirrors `vampnet network`. Returns nodes (off-target classes with their
+    weighted totals) + edges (the worst per-class hotspots).
+    """
+    scored = _scored_get(session)
+    if scored is None:
+        raise UserError("no scored design — run `origami score` first")
+    obj = scored.objectives
+    nodes = [
+        {"id": "j1", "label": "staple<->wrong-scaffold", "weight": obj["j1_staple_wrong_scaffold"]},
+        {"id": "j2", "label": "scaffold<->scaffold", "weight": obj["j2_scaffold_scaffold"]},
+        {"id": "j3", "label": "staple<->staple", "weight": obj["j3_staple_staple"]},
+        {"id": "j4", "label": "staple hairpin", "weight": obj["j4_staple_hairpin"]},
+    ]
+    edges = []
+    for key, hs in scored.hotspots.items():
+        for h in hs[:10]:
+            edges.append({"channel": key, "hotspot": list(h)})
+    return {"nodes": nodes, "edges": edges, "total": obj["total"]}
+
+
+def cmd_envelope(session, density=180.0):
+    """Plan a lipid-bilayer delivery envelope for the active design.
+
+    Returns the envelope plan (handle count, carrier staples, predicted
+    in-vivo effects). See envelope.py / CONNECTIONS.md.
+    """
+    from . import contactmap, envelope
+    cm = contactmap.design_get(session)
+    structure = cm.__dict__.get("structure")
+    return envelope.design_envelope(session, cm, handle_density_nm2=float(density),
+                                    structure=structure)
+
+
+def cmd_evolve(session, generations=200, k=8, point_rate=0.02, seed=0):
+    """Run the Sakana-style recursive-improvement loop on the active
+    design's scaffold. Returns the archive + best design + improvement curve.
+    """
+    from . import contactmap, evolve
+    cm = contactmap.design_get(session)
+
+    def _log(step):
+        if step["generation"] % 25 == 0:
+            session.logger.info(
+                f"[origami evolve] gen {step['generation']} "
+                f"archive={step['archive_size']} best={step['best_total']:.1f}"
+            )
+
+    result = evolve.evolve(cm, generations=int(generations), k=int(k),
+                          point_rate=float(point_rate), seed=int(seed),
+                          on_step=_log)
+    return result
+
+
+def cmd_report(session, path):
+    """Emit a scaffoldselector-style HTML report of the optimization.
+
+    Returns {"path": str, "bytes": int}.
+    """
+    opt = getattr(session, _OPT_KEY, None)
+    scored = _scored_get(session)
+    from . import report
+    return report.write_html(path, scored=scored, optimization=opt)
+
+
+def cmd_save(session, path):
+    """Save the scored design + last Pareto front to a JSON file."""
+    import json
+    scored = _scored_get(session)
+    if scored is None:
+        raise UserError("no scored design — run `origami score` first")
+    payload = {
+        "scored": scored.summary(),
+        "scaffold": scored.cm.scaffold,
+        "staples": scored.cm.staples,
+        "optimization": getattr(session, _OPT_KEY, None),
+    }
+    with open(path, "w") as f:
+        json.dump(payload, f)
+    import os
+    return {"path": path, "bytes": os.path.getsize(path)}
+
+
+def cmd_load(session, path):
+    """Load a previously saved scored design + Pareto front."""
+    import json
+    from . import contactmap, score
+    with open(path) as f:
+        payload = json.load(f)
+    cm = contactmap.ContactMap(scaffold=payload["scaffold"],
+                               staples=payload.get("staples", []))
+    contactmap._design_set(session, cm)
+    scored = score.score(cm)
+    _scored_set(session, scored)
+    if payload.get("optimization") is not None:
+        setattr(session, _OPT_KEY, payload["optimization"])
+    return scored.summary()
+
+
+def cmd_mcp_serve(session, port=7346):
+    """Start the MCP bridge so MCP-capable LLM agents can drive this bundle."""
+    from . import mcp_server
+    return mcp_server.start(session, port=int(port))
+
+
+def cmd_mcp_stop(session):
+    """Stop the MCP bridge."""
+    from . import mcp_server
+    return mcp_server.stop()
+
+
+# ----------------------------------------------------------------------
+# Command descriptors.
+# ----------------------------------------------------------------------
+_DESC_LOAD_DESIGN = CmdDesc(
+    required=[("path", OpenFileNameArg)],
+    keyword=[("format", EnumOf(["auto", "cadnano", "scadnano", "oxdna", "contactmap"]))],
+    synopsis=("Load a DNA-origami design and build its base-pair contact map. "
+              "format=auto infers from extension/content. Example: "
+              "origami load_design rothemund_smiley.json"),
+)
+_DESC_SCORE = CmdDesc(
+    keyword=[("k", IntArg)],
+    synopsis=("Score the four off-target interaction classes (j1 staple<->wrong-"
+              "scaffold, j2 scaffold<->scaffold, j3 staple<->staple, j4 hairpin) "
+              "via a k-mer reverse-complement index. k~7-9. Example: origami score k 8"),
+)
+_DESC_OPTIMIZE = CmdDesc(
+    keyword=[("candidates", RepeatOf(OpenFileNameArg)), ("k", IntArg)],
+    synopsis=("Multi-objective Pareto selection over candidate scaffold "
+              "sequences (same routing, different sequence). Returns the "
+              "non-dominated front + best compromise. Example: origami "
+              "optimize candidates m13.json,phix174.json,synthetic.json"),
+)
+_DESC_FRUSTRATION = CmdDesc(
+    synopsis=("Color the loaded nanostructure by off-target (frustration) "
+              "density. Requires `origami score` first."),
+)
+_DESC_NETWORK = CmdDesc(
+    synopsis=("Return the off-target interaction map as a JSON graph "
+              "(classes + worst hotspots). Requires `origami score` first."),
+)
+_DESC_ENVELOPE = CmdDesc(
+    keyword=[("density", FloatArg)],
+    synopsis=("Plan a virus-inspired lipid-bilayer envelope (Perrault & Shih "
+              "2014): handle count at the target density (default 1 per "
+              "180 nm^2), carrier staples, predicted in-vivo effects. "
+              "Example: origami envelope density 180"),
+)
+_DESC_EVOLVE = CmdDesc(
+    keyword=[("generations", IntArg), ("k", IntArg),
+             ("point_rate", FloatArg), ("seed", IntArg)],
+    synopsis=("Run the Sakana-style recursive-improvement loop (open-ended "
+              "MAP-Elites over scaffold sequences, off-target score as "
+              "fitness). Returns the stepping-stone archive + best design. "
+              "Example: origami evolve generations 300 seed 0"),
+)
+_DESC_REPORT = CmdDesc(
+    required=[("path", SaveFileNameArg)],
+    synopsis=("Write a scaffoldselector-style HTML report of the optimization "
+              "to path. Example: origami report /tmp/design_report.html"),
+)
+_DESC_SAVE = CmdDesc(
+    required=[("path", SaveFileNameArg)],
+    synopsis="Save the scored design + Pareto front to a JSON file.",
+)
+_DESC_LOAD = CmdDesc(
+    required=[("path", OpenFileNameArg)],
+    synopsis="Load a previously saved scored design + Pareto front.",
+)
+_DESC_MCP_SERVE = CmdDesc(
+    keyword=[("port", IntArg)],
+    synopsis=("Start the MCP bridge so external LLM agents (Claude Desktop, "
+              "Cursor) can drive this bundle. Default port 7346."),
+)
+_DESC_MCP_STOP = CmdDesc(synopsis="Stop the MCP bridge.")
+
+
+def register_commands(logger):
+    register("origami load_design", _DESC_LOAD_DESIGN, cmd_load_design, logger=logger)
+    register("origami score", _DESC_SCORE, cmd_score, logger=logger)
+    register("origami optimize", _DESC_OPTIMIZE, cmd_optimize, logger=logger)
+    register("origami frustration", _DESC_FRUSTRATION, cmd_frustration, logger=logger)
+    register("origami network", _DESC_NETWORK, cmd_network, logger=logger)
+    register("origami envelope", _DESC_ENVELOPE, cmd_envelope, logger=logger)
+    register("origami evolve", _DESC_EVOLVE, cmd_evolve, logger=logger)
+    register("origami report", _DESC_REPORT, cmd_report, logger=logger)
+    register("origami save", _DESC_SAVE, cmd_save, logger=logger)
+    register("origami load", _DESC_LOAD, cmd_load, logger=logger)
+    register("origami mcp serve", _DESC_MCP_SERVE, cmd_mcp_serve, logger=logger)
+    register("origami mcp stop", _DESC_MCP_STOP, cmd_mcp_stop, logger=logger)

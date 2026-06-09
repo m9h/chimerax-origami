@@ -1,0 +1,31 @@
+# chimerax-origami — end-to-end design workflow (run inside ChimeraX)
+#
+#   chimerax --nogui examples/design_workflow.cxc
+#
+# Mirrors chimerax-vampnet/examples/chignolin_headless.cxc: a single .cxc
+# that drives the whole bundle so a result is reproducible from one file.
+
+# 1. Load a design and build its base-pair contact map.
+origami load_design examples/data/demo_design.json format contactmap
+
+# 2. Score the four off-target classes (j1..j4).
+origami score k 8
+
+# 3. Surface the off-target interaction graph (JSON to the log).
+origami network
+
+# 4. Color the structure by frustration density (no-op if routing-only).
+origami frustration
+
+# 5. Multi-objective Pareto selection over alternative scaffold sequences.
+#    (drop several candidate designs in examples/data/ to compare them)
+# origami optimize candidates examples/data/m13.json,examples/data/phix.json
+
+# 6. Recursive self-improvement: evolve a lower-frustration scaffold.
+origami evolve generations 400 seed 0
+
+# 7. Plan a virus-inspired lipid-bilayer delivery envelope.
+origami envelope density 180
+
+# 8. Emit the scaffoldselector-style HTML report.
+origami report examples/data/demo_report.html
