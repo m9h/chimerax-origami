@@ -79,9 +79,53 @@ adapters pending released checkpoints).
 | `src/mcp_server.py` | HTTP/JSON bridge for LLM agents | `mcp_server.py` |
 | `src/__init__.py` | BundleAPI subclass | `__init__.py` |
 
+## Research roadmap: the foundation-model stack for DNA nanostructures
+
+chimerax-vampnet ingests heterogeneous protein FMs (AlphaFold/AlphaFlow,
+BioEmu, Boltz-2, ESMFold2, MarS-FM) on equal footing. The DNA-nanostructure
+field acquired its *own* equivalent stack in 2024–26 — the modules below
+should ingest these the way vampnet ingests protein FMs.
+
+| Protein FM (vampnet ingests) | role | DNA-nanostructure analog | maturity |
+|---|---|---|---|
+| AlphaFlow / BioEmu (flow/emulated ensembles) | generative ensemble | **Diffusion DNA-origami generator** — *De novo design of DNA origami with a generative diffusion model*, Nat Commun 2026, [s41467-026-73578-z](https://www.nature.com/articles/s41467-026-73578-z): guided diffusion trained on simulated equilibrium conformations + strand routing | exists (2026) |
+| MarS-FM (fast trajectory surrogate, ~600× MD) | fast forward model | **GNN origami shape predictor** — *Prediction of DNA origami shape using graph neural network*, Nat Mater 2024, [s41563-024-01846-8](https://www.nature.com/articles/s41563-024-01846-8): real-time 3D conformation, physics-informed, scales to supramolecular assemblies | exists (2024) |
+| ESM / ESM3 (protein language model) | sequence FM | **Evo 2** genomic LLM (Arc Institute, 40B, 1 M-token context, single-nt; controllable DNA generation), [biorxiv 2025.02.18.638918](https://www.biorxiv.org/content/10.1101/2025.02.18.638918v1); Nucleotide Transformer | exists (2025) |
+| AlphaFold3 / Boltz-2 (complex prediction) | structure validation | **AlphaFold3 / RoseTTAFoldNA / Chai-1** (nucleic-acid-capable) for junctions, aptamers, protein–DNA interfaces | exists |
+| OpenMM (atomistic MD) | gold-standard physics | **oxDNA / oxRNA, mrDNA, SNUPI, CanDo** (coarse-grained); [oxDNA.org](https://academic.oup.com/nar/article/49/W1/W491/6261791) GPU webserver | exists |
+| deeptime VAMPnet (learn slow CVs / states) | kinetics/landscape | **— open gap —** no learned assembly-pathway MSM yet | **opportunity** |
+
+**Highest-leverage adds, in order:**
+1. **GNN shape predictor → fast forward model.** Lets `evolve.py` / `optimize.py` score *geometric* fidelity (does it fold to the target shape?) in real time, not just sequence off-target. The MarS-FM analog.
+2. **Evo 2 → FM-guided mutation operator.** Replace `evolve.py`'s random point edits with Evo-2-proposed / Evo-2-scored scaffold sequences, and generate the "favourable scaffold regions" the Krasnogor paper mines biologically. The ESM analog, and the cleanest standalone contribution.
+3. **Diffusion generator → inverse-design source.** `evolve` proposes, the diffusion model refines + routes — a generate-and-verify loop mirroring vampnet's adaptive sampling.
+4. **AlphaFold3 → motif/interface validator** for aptamers, junctions, and the lipid-handle / antibody-conjugation sites.
+
+**The method-level bridge (a paper, not just an analogy):** apply
+chimerax-vampnet's *actual machinery* — a VAMPnet/MSM — to oxDNA **assembly
+trajectories**. Just as vampnet learns metastable protein states from MD,
+one can learn the metastable *folding intermediates* of an origami and
+recover off-target traps as metastable kinetic traps. This makes the two
+bundles share code, not just a contact-map abstraction.
+
+## Applications & adjacent research lines (mine these)
+
+The `envelope.py` "enveloped delivery vehicle" thread is one node in a
+larger map. Lines worth tracking / building toward:
+
+- **Encapsulation & shielding** (the `envelope.py` family): lipid-bilayer envelope ([Perrault & Shih 2014](https://pubs.acs.org/doi/10.1021/nn5011914)); virus-capsid-protein coating (*Virus-Encapsulated DNA Origami*, [Nano Lett 2014](https://pubs.acs.org/doi/abs/10.1021/nl500677j)); **exosome-mimicking coatings that cross the blood–brain barrier** (2024–25); silicification / oligolysine-PEG coating; *Synthetic Cell Armor* origami nanoshells ([PMC10416349](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC10416349/)). All are the same landscape-perturbation pattern → extend `origami envelope`.
+- **Therapeutics:** autonomous reconfigurable [nanorobot arrays (2025)](https://phys.org/news/2025-11-nanorobots-based-reconfigurable-dna-origami.html); thrombin tumor-targeting nanorobots (Li et al. 2018); CpG-adjuvant cancer-vaccine scaffolds; DNA-origami T-cell engagers; gene-encoding origami for mammalian expression ([PMC9950468](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC9950468/)).
+- **The neural-organoid bridge to chimerax-vampnet:** an origami that *displays Notch ligands (DLL4) at nm-precise spacing/valency* to tune the exact receptor clustering vampnet models — origami as a **spatial signaling scaffold**, delivered to brain organoids via exosome-coated chassis. This is the killer app uniting the two repos.
+- **Geometry compilers (inverse design of routing):** DAEDALUS / PERDIX / TALOS / ATHENA / vHelix — automated scaffold routing from a target mesh; the geometric counterpart to `evolve.py`'s sequence optimization.
+- **DNA data storage & digital-twin lines** (Krasnogor / GitLife): version control for cell engineering, DNA-based data structures — a different application of the same off-target-aware sequence design.
+
 ## References
 
 - Shirt-Ediss, Torelli, Navarro & Krasnogor. *Optimising DNA origami assembly by reducing off-target interactions.* Nat Commun (2026). https://www.nature.com/articles/s41467-026-73387-4
+- *De novo design of DNA origami with a generative diffusion model.* Nat Commun (2026). https://www.nature.com/articles/s41467-026-73578-z
+- *Prediction of DNA origami shape using graph neural network.* Nat Mater (2024). https://www.nature.com/articles/s41563-024-01846-8
+- Brixi et al. *Genome modeling and design across all domains of life with Evo 2.* bioRxiv (2025). https://www.biorxiv.org/content/10.1101/2025.02.18.638918v1
 - Douglas et al. *Rapid prototyping of 3D DNA-origami shapes with caDNAno.* Nucleic Acids Res (2009).
 - Perrault & Shih. *Virus-Inspired Membrane Encapsulation of DNA Nanostructures To Achieve In Vivo Stability.* ACS Nano (2014). https://pubs.acs.org/doi/10.1021/nn5011914
+- *Virus-Encapsulated DNA Origami Nanostructures for Cellular Delivery.* Nano Lett (2014). https://pubs.acs.org/doi/abs/10.1021/nl500677j
 - `scaffoldselector` — https://scaffoldselector.readthedocs.io/
