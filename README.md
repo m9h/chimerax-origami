@@ -97,7 +97,7 @@ should ingest these the way vampnet ingests protein FMs.
 
 **Highest-leverage adds, in order:**
 1. **GNN shape predictor → fast forward model.** Lets `evolve.py` / `optimize.py` score *geometric* fidelity (does it fold to the target shape?) in real time, not just sequence off-target. The MarS-FM analog.
-2. **Evo 2 → FM-guided mutation operator.** Replace `evolve.py`'s random point edits with Evo-2-proposed / Evo-2-scored scaffold sequences, and generate the "favourable scaffold regions" the Krasnogor paper mines biologically. The ESM analog, and the cleanest standalone contribution.
+2. **Evo 2 → FM-guided mutation operator.** ✅ *scaffolded* — `evolve.Evo2Mutator` + `md/evo2_modal.py` replace random point edits with Evo-2-scored / Evo-2-generated scaffold edits, fusing the FM likelihood with the off-target objective (`cost = off_target − fm_weight·loglik`); degrades to random mutation if no backend. Generates the "favourable scaffold regions" the Krasnogor paper mines biologically. The ESM analog, and the cleanest standalone contribution.
 3. **Diffusion generator → inverse-design source.** `evolve` proposes, the diffusion model refines + routes — a generate-and-verify loop mirroring vampnet's adaptive sampling.
 4. **AlphaFold3 → motif/interface validator** for aptamers, junctions, and the lipid-handle / antibody-conjugation sites.
 

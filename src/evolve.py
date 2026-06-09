@@ -120,10 +120,145 @@ def _make_individual(cm_template: ContactMap, scaffold: str, k: int,
     )
 
 
+class RandomMutator:
+    """The baseline operator: uniform-random point edits + optional splice.
+
+    Wraps `_mutate` behind the `(seq, rng) -> seq` mutator interface so the
+    loop can treat random and FM-guided proposers identically.
+    """
+
+    template = None  # filled by evolve() so a mutator can score full designs
+
+    def __init__(self, point_rate: float = 0.02, library: Optional[List[str]] = None,
+                 n_splice: int = 0):
+        self.point_rate = point_rate
+        self.library = library
+        self.n_splice = n_splice
+
+    def __call__(self, seq: str, rng: random.Random) -> str:
+        return _mutate(seq, rng, point_rate=self.point_rate,
+                       n_splice=self.n_splice, library=self.library)
+
+
+class Evo2Mutator:
+    """FM-guided mutation operator: proposes scaffold edits with the **Evo 2**
+    genomic language model (Arc Institute, 2025) instead of uniform-random
+    base substitutions, fusing Evo 2's learned sequence prior with the
+    off-target *physics* objective.
+
+    This is the DNA-sequence analog of using ESM to guide protein design:
+    Evo 2 was trained on genomes across all domains of life at single-
+    nucleotide resolution, so its likelihood is a prior over "natural-like"
+    DNA — exactly the signal the Krasnogor paper extracts manually when it
+    mines "favourable scaffold regions" from biological sequences. Here the
+    FM supplies those regions automatically.
+
+    Heavy deps stay OUT of this module (mirroring how vampnet keeps torch /
+    modal lazy). `backend` is any object exposing:
+        .score(seqs: list[str]) -> list[float]   # mean per-base log-likelihood
+        .generate(prefix, n_tokens, n, temperature) -> list[str]   # optional
+    Pass the client from `md/evo2_modal.py` (remote Modal), a local Evo 2,
+    or a stub. If `backend` is None or a call raises, the operator
+    transparently falls back to random mutation so the loop never stalls.
+
+    mode:
+        "score"     propose several candidate window edits locally, then keep
+                    the one minimizing  off_target_total - fm_weight * loglik
+                    (low frustration AND natural-like). Uses only .score().
+        "generate"  let Evo 2 autoregressively write the window from its
+                    flanking prefix (Evo 2 is a causal LM). Uses .generate(),
+                    then ranks the infills by the same combined cost.
+    """
+
+    template = None  # an optional ContactMap giving the real staples to score against
+
+    def __init__(self, backend=None, mode: str = "score", k: int = 8,
+                 window: int = 24, n_candidates: int = 6, fm_weight: float = 50.0,
+                 temperature: float = 0.7, point_rate: float = 0.04,
+                 library: Optional[List[str]] = None, n_splice: int = 0):
+        self.backend = backend
+        self.mode = mode
+        self.k = k
+        self.window = window
+        self.n_candidates = n_candidates
+        self.fm_weight = fm_weight
+        self.temperature = temperature
+        self.point_rate = point_rate
+        self.library = library
+        self.n_splice = n_splice
+
+    # -- helpers ---------------------------------------------------------
+    def _offtarget_total(self, scaffold: str) -> float:
+        tmpl = self.template
+        cm = ContactMap(
+            scaffold=scaffold,
+            staples=tmpl.staples if tmpl else [],
+            intended_pairs=tmpl.intended_pairs if tmpl else [],
+            name="cand",
+        )
+        return score(cm, k=self.k).objectives["total"]
+
+    def _random_fallback(self, seq: str, rng: random.Random) -> str:
+        return _mutate(seq, rng, point_rate=self.point_rate,
+                       n_splice=self.n_splice, library=self.library)
+
+    def _combined_cost(self, candidates: List[str]) -> List[float]:
+        # Lower is better: low off-target frustration AND high Evo 2 likelihood.
+        offt = [self._offtarget_total(c) for c in candidates]
+        try:
+            lls = self.backend.score(candidates)
+        except Exception:
+            lls = [0.0] * len(candidates)
+        return [offt[i] - self.fm_weight * float(lls[i]) for i in range(len(candidates))]
+
+    def _window_bounds(self, seq: str, rng: random.Random):
+        if len(seq) <= self.window:
+            return 0, len(seq)
+        start = rng.randint(0, len(seq) - self.window)
+        return start, start + self.window
+
+    # -- the two proposal strategies ------------------------------------
+    def _score_guided(self, seq: str, rng: random.Random) -> str:
+        s, e = self._window_bounds(seq, rng)
+        # Candidate windows: the original plus several locally-mutated variants.
+        cands = [seq]
+        for _ in range(self.n_candidates):
+            win = list(seq[s:e])
+            for i in range(len(win)):
+                if rng.random() < self.point_rate * 4:  # denser edits inside the window
+                    win[i] = rng.choice(_BASES)
+            cands.append(seq[:s] + "".join(win) + seq[e:])
+        costs = self._combined_cost(cands)
+        return cands[min(range(len(cands)), key=lambda i: costs[i])]
+
+    def _generate_guided(self, seq: str, rng: random.Random) -> str:
+        s, e = self._window_bounds(seq, rng)
+        prefix = seq[:s]
+        infills = self.backend.generate(
+            prefix=prefix, n_tokens=(e - s), n=self.n_candidates,
+            temperature=self.temperature,
+        )
+        cands = [seq] + [prefix + fill[: e - s] + seq[e:] for fill in infills]
+        costs = self._combined_cost(cands)
+        return cands[min(range(len(cands)), key=lambda i: costs[i])]
+
+    def __call__(self, seq: str, rng: random.Random) -> str:
+        if self.backend is None:
+            return self._random_fallback(seq, rng)
+        try:
+            if self.mode == "generate" and hasattr(self.backend, "generate"):
+                return self._generate_guided(seq, rng)
+            return self._score_guided(seq, rng)
+        except Exception:
+            # Any backend hiccup (network, OOM, schema drift) degrades to
+            # random mutation rather than killing a long evolutionary run.
+            return self._random_fallback(seq, rng)
+
+
 def evolve(seed_cm: ContactMap, generations: int = 200, k: int = 8,
            point_rate: float = 0.02, library: Optional[List[str]] = None,
            n_splice: int = 0, seed: int = 0, gc_bins: int = 8,
-           on_step=None) -> dict:
+           mutator=None, on_step=None) -> dict:
     """Run the recursive-improvement loop on the seed design's scaffold.
 
     Args:
@@ -133,6 +268,11 @@ def evolve(seed_cm: ContactMap, generations: int = 200, k: int = 8,
         generations: number of mutate-score-admit iterations.
         k:           off-target k-mer length passed to score().
         library:     optional natural-sequence pool to splice from.
+        mutator:     optional `(seq, rng) -> seq` proposer. Defaults to
+                     RandomMutator (uniform point edits). Pass an
+                     Evo2Mutator (see md/evo2_modal.py) for FM-guided
+                     proposals. Its `.template` is auto-filled with seed_cm
+                     so it can score candidates against the real staples.
         on_step:     optional callback(step_dict) — the hook an MCP agent or
                      the live example uses to watch / steer the loop, mirror
                      of vampnet's adaptive-sampling callback.
@@ -141,6 +281,12 @@ def evolve(seed_cm: ContactMap, generations: int = 200, k: int = 8,
     design found, the improvement curve, and the lineage of the best.
     """
     rng = random.Random(seed)
+    if mutator is None:
+        mutator = RandomMutator(point_rate=point_rate, library=library, n_splice=n_splice)
+    # Give the mutator the full design so FM-guided proposers can score
+    # candidates against the real staples, not just the bare scaffold.
+    if getattr(mutator, "template", "unset") is None:
+        mutator.template = seed_cm
     archive: Dict[Tuple[int, int], Individual] = {}
     history: List[Individual] = []
 
@@ -171,8 +317,7 @@ def evolve(seed_cm: ContactMap, generations: int = 200, k: int = 8,
         weights = [1.0 / (1.0 + c.total) for c in cells]
         parent = rng.choices(cells, weights=weights, k=1)[0]
 
-        child_seq = _mutate(parent.scaffold, rng, point_rate=point_rate,
-                            n_splice=n_splice, library=library)
+        child_seq = mutator(parent.scaffold, rng)
         child = _make_individual(seed_cm, child_seq, k, parent=parent.idx, generation=g)
         admit(child)
 
@@ -200,6 +345,8 @@ def evolve(seed_cm: ContactMap, generations: int = 200, k: int = 8,
 
     return {
         "generations": generations,
+        "mutator": type(mutator).__name__,
+        "fm_guided": isinstance(mutator, Evo2Mutator) and mutator.backend is not None,
         "archive_size": len(archive),
         "n_niches_possible": gc_bins * 4,
         "seed_total": seed_ind.total,
