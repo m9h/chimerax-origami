@@ -57,7 +57,14 @@ scaffoldselector's.
   structure and cross-hybridization (MFE, equilibrium pair probabilities).
   Hotspots should coincide.
 
-## 2. Geometric forward model (`shape`, DGNN) vs. oxDNA / CanDo
+## 2. Geometric forward model (`shape`, DGNN) vs. oxDNA / CanDo — BLOCKED on checkpoint/compute
+
+Needs the DGNN checkpoint (unreleased) or a real oxDNA relaxation to compare
+against. `oxpy` now imports in this env, so the feasible next step is: convert
+a cadnano design to oxDNA topology, relax it, and compare Kabsch RMSD / Rg to
+`shape`. The current `shape` fallback is a deterministic lattice placeholder,
+so a quantitative RMSD test is only meaningful once the real DGNN (or oxDNA
+reference) is wired.
 
 - **RMSD to oxDNA.** Relax each reference design in **oxDNA** (oxDNA.org or
   local CUDA) and compare the predicted shape (Kabsch RMSD, radius of gyration)
@@ -139,7 +146,14 @@ solid-sphere area estimate is confirmed to *undercount* a hollow wireframe;
   geometry, and the carrier-staple set should land on outer-face staples once a
   real 3D model (from `shape`/oxDNA) feeds `envelope`.
 
-## 6. End-to-end: predict assembly quality, then check against the wet lab
+## 6. End-to-end: predict assembly quality vs. the wet lab — NEEDS a measured-yield dataset
+
+The capstone. The mechanism is in place and self-consistent (test 3: static
+frustration → lower emulated folding yield, Spearman −1.0). What remains is the
+*external* check: assemble a panel of published origami with measured assembly
+yield (gel/AFM/TEM) and test whether predicted frustration / trap depth / strain
+correlate with measured yield. This needs curating real yield data from the
+literature — a research task, not a code task.
 
 The capstone experiment. Take a panel of published origami with **measured
 assembly yield** (gel/AFM/TEM) — ideally spanning good and bad folders — and
