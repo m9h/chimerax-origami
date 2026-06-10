@@ -24,7 +24,26 @@ the scaffold into something trustworthy. Ordered roughly easiest → hardest.
 - **Scaffold variants.** p7249 (M13mp18), p7560, p8064, phiX174 — same routing,
   different sequence; confirms `sequence` application is routing-faithful.
 
-## 1. Off-target scorer (`score`) vs. the Krasnogor paper / scaffoldselector
+## ✅ 1. Off-target scorer — DONE (`tests/test_scorer_validation.py`, `examples/scorer_validation_demo.py`)
+
+Implemented and passing. Results on the real M13mp18 scaffold + Douglas 2009
+monolith routing:
+- **Detection:** designed self-complementarity (`A + spacer + RC(A)`) scores
+  ~**190× higher** than random — and this validation *found and fixed a real
+  bug* (the j2/j4 diagonal filter compared a forward index to a reverse-
+  complement index, masking long-range self-complementarity; now compares
+  physical positions).
+- **Cross-tool (ViennaRNA):** Spearman(`j2`, −MFE) = **+0.53** over 150 random
+  sequences — the cheap k-mer proxy tracks rigorous thermodynamics. Runs in CI.
+- **Krasnogor claim:** for the *fixed* monolith routing, scaffold choice changes
+  off-target from **819 (M13)** to **30.5 M (low-complexity ACGT repeat)**;
+  `optimize` rejects the pathological scaffold.
+
+Remaining (needs their data / NUPACK): reproduce the paper's exact
+favourable/unfavourable region ranking, and overlap our Pareto front with
+scaffoldselector's.
+
+## 1b. Original plan — scorer vs. the Krasnogor paper / scaffoldselector
 
 - **Reproduce the paper's ranking.** Shirt-Ediss, Torelli, Navarro & Krasnogor
   (*Nat Commun* 2026) identify *favourable* and *unfavourable* scaffold regions

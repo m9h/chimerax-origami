@@ -32,7 +32,9 @@ jobs:
           # runtime so no chimerax install is needed. numpy is only used by
           # the .npz contactmap loader (not hit by the suite) but we install
           # it so an added npz test would run. pytest is the only hard dep.
-          pip install pytest pytest-cov numpy
+          # ViennaRNA powers the scorer's cross-tool validation test
+          # (test_scorer_validation.py); skipped via importorskip if absent.
+          pip install pytest pytest-cov numpy ViennaRNA
 
       - name: Run pytest
         run: |

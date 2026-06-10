@@ -37,6 +37,12 @@ from .contactmap import ContactMap, reverse_complement
 # Krasnogor scorer sweeps a range, we default to one value and weight by run.
 _DEFAULT_K = 8
 
+# Cap on stored hotspots per pairwise comparison. The numeric score counts
+# every hit, but the hotspot list (used only for viz/reporting) is bounded so
+# a low-complexity / repetitive scaffold can't balloon memory with millions of
+# near-identical tuples.
+_MAX_HOTSPOTS = 10000
+
 
 def _kmer_positions(seq: str, k: int) -> Dict[str, List[int]]:
     idx: Dict[str, List[int]] = defaultdict(list)
@@ -56,22 +62,29 @@ def _run_weight(k: int) -> float:
 def _count_offtarget(a: str, b: str, k: int, same: bool, intended_offset=None) -> Tuple[float, list]:
     """Count reverse-complement k-mer matches between strand a and strand b.
 
-    If same is True, a is b (intra-strand); we skip the trivial self-match
-    and the intended register. Returns (weighted_score, hotspots) where
-    hotspots is a list of (pos_a, pos_b, k) for surfacing in viz.
+    A length-k window a[i:i+k] hybridizes to b wherever it appears in
+    revcomp(b); a hit at revcomp-index j means a[i:i+k] is the reverse
+    complement of b[p:p+k] with PHYSICAL partner position p = len(b)-j-k.
+
+    If same is True (a is b, an intra-strand fold), we skip the self-pairing
+    of a region with itself by comparing the two *physical* positions i and p
+    (|i-p| < k), NOT i and the revcomp-index j — the latter wrongly skips real
+    long-range self-complementarity in near-symmetric sequences. Returns
+    (weighted_score, hotspots) where each hotspot is (pos_a, partner_pos, k).
     """
+    L = len(b)
     b_rc_index = _kmer_positions(reverse_complement(b), k)
     score = 0.0
     hotspots = []
     for i in range(len(a) - k + 1):
         win = a[i:i + k]
-        # A window of a hybridizes to b wherever b's reverse complement
-        # contains it; equivalently where win appears in revcomp(b).
         for j in b_rc_index.get(win, ()):
-            if same and abs(i - j) < k:
-                continue  # trivial self overlap
+            p = L - j - k  # physical position in b that a[i:i+k] pairs with
+            if same and abs(i - p) < k:
+                continue   # a region pairing with itself — not an off-target
             score += _run_weight(k)
-            hotspots.append((i, j, k))
+            if len(hotspots) < _MAX_HOTSPOTS:
+                hotspots.append((i, p, k))
     return score, hotspots
 
 
