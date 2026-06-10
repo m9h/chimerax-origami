@@ -40,6 +40,26 @@ def _scored_set(session, scored):
 # ----------------------------------------------------------------------
 # Command implementations.
 # ----------------------------------------------------------------------
+def cmd_generate(session, type="bundle", n_helices=6, length=64, sequence=None, seed=0):
+    """Generate a DNA-origami routing for a target shape (diffusion generator,
+    Nat Commun 2026; deterministic parametric router fallback) and set it as
+    the active design. With `sequence`, threads a scaffold through the routing
+    and derives complementary staples. Returns the design summary.
+    """
+    from . import generate, contactmap
+    target = generate.Target(type=type, n_helices=int(n_helices), length=int(length))
+    cm = generate.generate_routing(target, backend=None, seed=int(seed))
+    if sequence:
+        seq = sequence
+        if os.path.isfile(sequence):
+            with open(sequence) as fh:
+                seq = "".join(ln.strip() for ln in fh if not ln.startswith(">"))
+        cm = generate.apply_scaffold(cm, seq)
+    cm.source_format = "generated"
+    contactmap._design_set(session, cm)
+    return cm.summary()
+
+
 def cmd_load_design(session, path, format="auto", sequence=None):
     """Load a cadnano / scadnano / oxDNA / contactmap design and build its
     contact map. `sequence` (optional) applies a scaffold sequence along the
@@ -274,6 +294,16 @@ def cmd_mcp_stop(session):
 # ----------------------------------------------------------------------
 # Command descriptors.
 # ----------------------------------------------------------------------
+_DESC_GENERATE = CmdDesc(
+    keyword=[("type", EnumOf(["bundle", "sheet", "rod"])),
+             ("n_helices", IntArg), ("length", IntArg),
+             ("sequence", StringArg), ("seed", IntArg)],
+    synopsis=("Generate a DNA-origami routing for a target shape (diffusion "
+              "generator, Nat Commun 2026; parametric-router fallback) and make "
+              "it the active design. sequence threads a scaffold + derives "
+              "staples. Example: origami generate type bundle n_helices 6 "
+              "length 64 sequence m13.txt"),
+)
 _DESC_LOAD_DESIGN = CmdDesc(
     required=[("path", OpenFileNameArg)],
     keyword=[("format", EnumOf(["auto", "cadnano", "scadnano", "oxdna", "contactmap"])),
@@ -359,6 +389,7 @@ _DESC_MCP_STOP = CmdDesc(synopsis="Stop the MCP bridge.")
 
 
 def register_commands(logger):
+    register("origami generate", _DESC_GENERATE, cmd_generate, logger=logger)
     register("origami load_design", _DESC_LOAD_DESIGN, cmd_load_design, logger=logger)
     register("origami score", _DESC_SCORE, cmd_score, logger=logger)
     register("origami optimize", _DESC_OPTIMIZE, cmd_optimize, logger=logger)

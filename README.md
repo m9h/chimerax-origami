@@ -49,6 +49,7 @@ of a misfolded metastable protein state.
 ## Commands
 
 ```
+origami generate [type bundle] [n_helices 6] [length 64]    # diffusion routing generator
 origami load_design <path> [format ...] [sequence m13.txt]  # real cadnano importer
 origami score                       # 4-vector + per-region hotspots
 origami optimize [candidates ...]   # Pareto front over scaffold sequences
@@ -83,8 +84,9 @@ nucleotide-conservation invariants enforced.
 
 | Module | Role | Mirrors (vampnet) |
 |---|---|---|
-| `src/cmd.py` | command registration (14 commands) | `cmd.py` |
-| `src/contactmap.py` | design loaders → base-pair contact map | `featurize.py` |
+| `src/cmd.py` | command registration (15 commands) | `cmd.py` |
+| `src/generate.py` | target shape → routing (diffusion / parametric) | AlphaFlow/BioEmu adapters |
+| `src/contactmap.py` | design loaders (real cadnano2 importer) → contact map | `featurize.py` |
 | `src/score.py` | 4-class off-target scoring | `vampnet_core.py` |
 | `src/optimize.py` | multi-objective Pareto scaffold selection | `msm.py` |
 | `src/evolve.py` | recursive-improvement loop + `Evo2Mutator` | adaptive sampling |
@@ -97,6 +99,7 @@ nucleotide-conservation invariants enforced.
 | `md/evo2_modal.py` | Evo 2 sequence-FM backend | `*_modal.py` |
 | `md/gnn_shape_modal.py` | DGNN shape backend | `*_modal.py` |
 | `md/oxdna_modal.py` | oxDNA folding-trajectory producer | OpenMM MD producers |
+| `md/diffusion_modal.py` | diffusion routing-generator backend | `*_modal.py` |
 
 ## Research roadmap: the foundation-model stack for DNA nanostructures
 
@@ -117,7 +120,7 @@ should ingest these the way vampnet ingests protein FMs.
 **Highest-leverage adds, in order:**
 1. **GNN shape predictor → fast forward model.** ✅ *scaffolded* — `shape.ShapePredictor` + `md/gnn_shape_modal.py` (the DGNN of Truong-Quoc et al., Nat Mater 2024) re-type the contact map as the DGNN graph and predict 3D shape + per-base-pair flexibility (RMSF), with a deterministic lattice fallback when no checkpoint is wired. Surfaced as `origami shape`; lets the loop score *geometric* fidelity, not just sequence off-target. The MarS-FM analog.
 2. **Evo 2 → FM-guided mutation operator.** ✅ *scaffolded* — `evolve.Evo2Mutator` + `md/evo2_modal.py` replace random point edits with Evo-2-scored / Evo-2-generated scaffold edits, fusing the FM likelihood with the off-target objective (`cost = off_target − fm_weight·loglik`); degrades to random mutation if no backend. Generates the "favourable scaffold regions" the Krasnogor paper mines biologically. The ESM analog, and the cleanest standalone contribution.
-3. **Diffusion generator → inverse-design source.** `evolve` proposes, the diffusion model refines + routes — a generate-and-verify loop mirroring vampnet's adaptive sampling.
+3. **Diffusion generator → inverse-design source.** ✅ *scaffolded* — `generate.RoutingGenerator` + `md/diffusion_modal.py` turn a target shape into a routing (ContactMap); `apply_scaffold` threads a sequence and derives complementary staples, so `generate → score/shape → evolve` runs end to end (deterministic parametric router until the diffusion checkpoint is wired). Surfaced as `origami generate`.
 4. **AlphaFold3 → motif/interface validator** for aptamers, junctions, and the lipid-handle / antibody-conjugation sites.
 
 **The method-level bridge (a paper, not just an analogy):** ✅ *scaffolded* —
