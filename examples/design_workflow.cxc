@@ -6,6 +6,9 @@
 # that drives the whole bundle so a result is reproducible from one file.
 
 # 1. Load a design and build its base-pair contact map.
+#    Real cadnano example (Douglas 2009 monolith, p7560) — apply the scaffold
+#    sequence along the recovered routing:
+#      origami load_design examples/data/Nature09_monolith.json sequence m13.txt
 origami load_design examples/data/demo_design.json format contactmap
 
 # 2. Score the four off-target classes (j1..j4).

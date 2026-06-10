@@ -75,7 +75,11 @@ backends (`md/*_modal.py`) pending released checkpoints/builds — same
 convention vampnet used for its MarS-FM / ESMFold2 adapters.
 
 See [`VALIDATION.md`](VALIDATION.md) for the real-world test plan
-(reference designs, datasets, and cross-tool checks).
+(reference designs, datasets, and cross-tool checks). Test 0 is live: the
+importer is pinned by golden-file tests on the real **Douglas et al. 2009
+*Nature* monolith** (`examples/data/Nature09_monolith.json` — p7560, 7560 nt,
+144 staples, 5880 base pairs, 60 helices) with the no-double-pairing and
+nucleotide-conservation invariants enforced.
 
 | Module | Role | Mirrors (vampnet) |
 |---|---|---|
