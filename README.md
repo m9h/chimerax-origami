@@ -84,7 +84,7 @@ nucleotide-conservation invariants enforced.
 
 | Module | Role | Mirrors (vampnet) |
 |---|---|---|
-| `src/cmd.py` | command registration (15 commands) | `cmd.py` |
+| `src/cmd.py` | command registration (17 commands) | `cmd.py` |
 | `src/generate.py` | target shape → routing (diffusion / parametric) | AlphaFlow/BioEmu adapters |
 | `src/contactmap.py` | design loaders (real cadnano2 importer) → contact map | `featurize.py` |
 | `src/score.py` | 4-class off-target scoring | `vampnet_core.py` |

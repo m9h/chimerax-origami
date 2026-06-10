@@ -56,7 +56,7 @@ def _estimate_surface_area_nm2(cm: ContactMap) -> float:
 
 
 def design_envelope(session, cm: ContactMap, handle_density_nm2: float = _DEFAULT_HANDLE_NM2,
-                    structure=None) -> dict:
+                    structure=None, surface_area_nm2=None) -> dict:
     """Plan a lipid-bilayer envelope for the active design.
 
     Computes the outer surface area, the number of lipid-conjugate handles
@@ -64,9 +64,16 @@ def design_envelope(session, cm: ContactMap, handle_density_nm2: float = _DEFAUL
     with handles, and (when a 3D model is present) adds a translucent shell
     surface representing the wrapping bilayer.
 
+    surface_area_nm2: override the (crude, solid-sphere) area estimate with a
+        known/measured enclosing surface — e.g. from a `shape`/oxDNA 3D model,
+        or a literature value. The solid-sphere estimate UNDERCOUNTS a hollow
+        wireframe (which encloses far more volume than its duplex volume), so
+        pass the real enclosing area for a quantitative handle count.
+
     Returns a JSON-serializable plan.
     """
-    area_nm2, radius_nm = _estimate_surface_area_nm2(cm)
+    est_area, radius_nm = _estimate_surface_area_nm2(cm)
+    area_nm2 = float(surface_area_nm2) if surface_area_nm2 is not None else est_area
     n_handles = max(1, round(area_nm2 / handle_density_nm2))
 
     # Choose handle-carrier staples: in a real importer these are the staples

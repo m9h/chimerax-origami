@@ -101,7 +101,18 @@ small real-trajectory check is feasible next.
   this is the central claim (static frustration ⇒ kinetic traps) and is directly
   falsifiable.
 
-## 4. Sequence FM (`Evo2Mutator`) vs. random + scaffoldselector
+## ✅ 4. Sequence FM ablation — DONE (`tests/test_evo2_ablation.py`)
+
+Score/FM-guided mutation reaches **lower off-target than random in a fixed
+budget** (mean 0.0 vs 5.0 at 20 generations on a hard seed). Validation
+surfaced — and fixed — a real weakness: the guided mutator picked a *random*
+window, making it slower than whole-sequence random mutation on long
+scaffolds; it now **targets the worst-frustrated window** (`Evo2Mutator`
+gained an `explore` knob), which is what makes it win. The real Evo 2
+plausibility check (natural >> shuffled log-likelihood) remains
+checkpoint-pending; the surrogate isolates the guided-selection benefit.
+
+## 4b. Original plan — vs. random + scaffoldselector
 
 - **Ablation.** On M13 circular-permutation candidates, compare three loops:
   random mutation, Evo-2-guided (`mode=score`), and Evo-2-generate. Metric:
@@ -110,7 +121,18 @@ small real-trajectory check is feasible next.
 - **Held-out plausibility.** Score natural vs. shuffled scaffolds with Evo 2;
   natural should score higher log-likelihood (a sanity check the backend works).
 
-## 5. Encapsulation (`envelope`) vs. Perrault & Shih
+## ✅ 5. Encapsulation — DONE (`tests/test_envelope_validation.py`)
+
+Validated against Perrault & Shih (ACS Nano 2014): the planner uses the
+paper's **1 conjugate / 180 nm²** density, the handle count follows the exact
+relation (`round(area/180)` — ~44 handles for a 50 nm octahedron), doubling
+density halves the count, and the reported in-vivo figures (**~17× bioavail.,
+~100× lower immune activation**, nuclease protection) are surfaced. The
+solid-sphere area estimate is confirmed to *undercount* a hollow wireframe;
+`design_envelope` now accepts a `surface_area_nm2` override so a real
+`shape`/oxDNA enclosing surface gives a quantitative count.
+
+## 5b. Original plan — vs. Perrault & Shih
 
 - Reproduce the handle-density arithmetic for the Perrault & Shih octahedron:
   at 1 conjugate / ~180 nm² the predicted handle count should match the paper's

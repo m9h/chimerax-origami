@@ -175,11 +175,13 @@ class Evo2Mutator:
     def __init__(self, backend=None, mode: str = "score", k: int = 8,
                  window: int = 24, n_candidates: int = 6, fm_weight: float = 50.0,
                  temperature: float = 0.7, point_rate: float = 0.04,
-                 library: Optional[List[str]] = None, n_splice: int = 0):
+                 explore: float = 0.3, library: Optional[List[str]] = None,
+                 n_splice: int = 0):
         self.backend = backend
         self.mode = mode
         self.k = k
         self.window = window
+        self.explore = explore
         self.n_candidates = n_candidates
         self.fm_weight = fm_weight
         self.temperature = temperature
@@ -212,10 +214,34 @@ class Evo2Mutator:
         return [offt[i] - self.fm_weight * float(lls[i]) for i in range(len(candidates))]
 
     def _window_bounds(self, seq: str, rng: random.Random):
-        if len(seq) <= self.window:
-            return 0, len(seq)
-        start = rng.randint(0, len(seq) - self.window)
-        return start, start + self.window
+        """Pick the window to edit. With probability `explore` choose a random
+        window; otherwise target the most off-target-frustrated window (the
+        sliding window with the most scaffold-self hotspots) so each guided
+        edit attacks the worst region — without this targeting, a fixed-size
+        window wanders and is slower than whole-sequence random mutation.
+        """
+        L = len(seq)
+        if L <= self.window:
+            return 0, L
+        if rng.random() < self.explore:
+            start = rng.randint(0, L - self.window)
+            return start, start + self.window
+        # per-base scaffold-self frustration, then the heaviest window.
+        sd = score(ContactMap(scaffold=seq), k=self.k)
+        fb = [0.0] * L
+        for (i, p, kk) in sd.hotspots.get("j2", []):
+            for b in range(i, min(i + kk, L)):
+                fb[b] += 1.0
+            for b in range(max(0, p), min(p + kk, L)):
+                fb[b] += 1.0
+        w = self.window
+        cur = sum(fb[:w])
+        best_sum, best_start = cur, 0
+        for s in range(1, L - w + 1):
+            cur += fb[s + w - 1] - fb[s - 1]
+            if cur > best_sum:
+                best_sum, best_start = cur, s
+        return best_start, best_start + w
 
     # -- the two proposal strategies ------------------------------------
     def _score_guided(self, seq: str, rng: random.Random) -> str:
