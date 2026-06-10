@@ -10,12 +10,30 @@ The headline fixture is Nature09_monolith.json — Douglas et al., Nature 459,
 helices: a genuine 3D published design, not a toy.
 """
 
+import json
 import os
 
 from src import contactmap as cmap
 from src.contactmap import reverse_complement
 
 DATA = os.path.join(os.path.dirname(__file__), "..", "examples", "data")
+
+
+def _stap_color_anchors(path):
+    """cadnano marks each staple's 5' end with a stap_colors entry
+    [base_idx, color] on its helix. Return the set of (helix, base) anchors —
+    independent metadata the importer's router does NOT consult."""
+    doc = json.load(open(path))
+    return {(vs["num"], b) for vs in doc["vstrands"]
+            for (b, _c) in vs.get("stap_colors", [])}
+
+
+def _router_staple_5ends(path):
+    """The (helix, base) 5' end of each staple, derived purely from the
+    scaf/stap routing pointers."""
+    doc = json.load(open(path))
+    vmap = {vs["num"]: vs for vs in doc["vstrands"]}
+    return {p[0] for p in cmap._walk_strands(vmap, "stap")}
 
 
 def _check_conservation(cm):
@@ -74,6 +92,18 @@ def test_monolith_sequence_application_is_complementary():
         assert cm.staples[strand - 1][st_idx] == reverse_complement(cm.scaffold[sc_idx])
         checked += 1
     assert checked == 500
+
+
+def test_router_staples_match_cadnano_stap_colors():
+    """Cross-validate against cadnano's OWN metadata: the routing-derived
+    staple 5' ends must exactly equal the stap_colors anchors the design
+    file declares. The router never reads stap_colors, so agreement is an
+    independent confirmation the strand walk is correct — VALIDATION.md test
+    0's cadnano cross-check, dependency-free.
+    """
+    for f in ("simple42legacy.json", "Nature09_monolith.json"):
+        path = os.path.join(DATA, f)
+        assert _router_staple_5ends(path) == _stap_color_anchors(path)
 
 
 def test_monolith_loads_via_public_api_and_scores():
