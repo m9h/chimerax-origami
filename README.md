@@ -56,6 +56,7 @@ origami frustration                 # color helices/bases by off-target density
 origami network                     # off-target interaction graph (JSON)
 origami envelope [density 180]      # lipid-handle placement + bilayer shell
 origami shape [n_ensemble 8]        # DGNN 3D shape + per-bp flexibility (RMSF)
+origami assembly_msm <traj.npz>     # VAMPnet/MSM of an oxDNA folding trajectory
 origami evolve [generations 200]    # Sakana-style recursive-improvement loop
 origami report <path.html>          # scaffoldselector-style HTML report
 origami save <path> / load <path>
@@ -72,14 +73,20 @@ adapters pending released checkpoints).
 
 | Module | Role | Mirrors (vampnet) |
 |---|---|---|
-| `src/cmd.py` | command registration (12 commands) | `cmd.py` |
+| `src/cmd.py` | command registration (14 commands) | `cmd.py` |
 | `src/contactmap.py` | design loaders → base-pair contact map | `featurize.py` |
 | `src/score.py` | 4-class off-target scoring | `vampnet_core.py` |
 | `src/optimize.py` | multi-objective Pareto scaffold selection | `msm.py` |
-| `src/viz.py` | color by frustration density | `viz.py` |
+| `src/evolve.py` | recursive-improvement loop + `Evo2Mutator` | adaptive sampling |
+| `src/shape.py` | DGNN geometric forward model | AlphaFold/Boltz adapters |
+| `src/assembly.py` | **VAMPnet/MSM of oxDNA folding trajectories** | `featurize.py` + `vampnet_core.py` + `msm.py` |
+| `src/viz.py` | color by frustration / flexibility | `viz.py` |
 | `src/envelope.py` | lipid-bilayer delivery envelope | `animate.py` |
 | `src/mcp_server.py` | HTTP/JSON bridge for LLM agents | `mcp_server.py` |
 | `src/__init__.py` | BundleAPI subclass | `__init__.py` |
+| `md/evo2_modal.py` | Evo 2 sequence-FM backend | `*_modal.py` |
+| `md/gnn_shape_modal.py` | DGNN shape backend | `*_modal.py` |
+| `md/oxdna_modal.py` | oxDNA folding-trajectory producer | OpenMM MD producers |
 
 ## Research roadmap: the foundation-model stack for DNA nanostructures
 
@@ -103,12 +110,19 @@ should ingest these the way vampnet ingests protein FMs.
 3. **Diffusion generator → inverse-design source.** `evolve` proposes, the diffusion model refines + routes — a generate-and-verify loop mirroring vampnet's adaptive sampling.
 4. **AlphaFold3 → motif/interface validator** for aptamers, junctions, and the lipid-handle / antibody-conjugation sites.
 
-**The method-level bridge (a paper, not just an analogy):** apply
-chimerax-vampnet's *actual machinery* — a VAMPnet/MSM — to oxDNA **assembly
-trajectories**. Just as vampnet learns metastable protein states from MD,
-one can learn the metastable *folding intermediates* of an origami and
-recover off-target traps as metastable kinetic traps. This makes the two
-bundles share code, not just a contact-map abstraction.
+**The method-level bridge (a paper, not just an analogy):** ✅ *scaffolded* —
+`src/assembly.py` + `origami assembly_msm` apply chimerax-vampnet's *actual
+pipeline* (featurize → cluster → MSM → transition graph, via the same
+deeptime library) to **oxDNA assembly trajectories**: the base-pair contact
+*occupancy* is the VAMPnet feature (exactly as CA-distances are vampnet's),
+metastable states are the origami's *folding intermediates*, and off-target
+interactions surface as **metastable kinetic-trap states**. The
+`transition_graph()` output is byte-compatible with `vampnet/msm.py`, so an
+MCP agent consumes assembly and protein MSMs through one code path.
+`md/oxdna_modal.py` produces the trajectories (the OpenMM analog). Run
+`examples/assembly_msm_demo.py` — it recovers unfolded/trap/folded and flags
+the trap (self-residence 0.51, slow escape-to-folded). This makes the two
+bundles *share the pipeline*, not just the contact-map abstraction.
 
 ## Applications & adjacent research lines (mine these)
 

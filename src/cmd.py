@@ -152,6 +152,36 @@ def cmd_shape(session, n_ensemble=8, target=None, color=True):
     return result.summary()
 
 
+def cmd_assembly_msm(session, path, lag=5, n_states=3, cutoff=2.0, backend="auto"):
+    """Build a Markov state model of an oxDNA ASSEMBLY trajectory — the
+    method bridge to chimerax-vampnet. Featurizes the trajectory as base-pair
+    contact occupancy, fits an MSM (deeptime if available, numpy fallback),
+    and returns the folding-intermediate states + transition graph + trap
+    states. Returns a JSON dict (see assembly.AssemblyMSM.summary +
+    transition_graph).
+    """
+    from . import assembly, contactmap
+    loaded = assembly.load_trajectory(path)
+    if loaded[0] == "occupancy":
+        features = loaded[1]
+    else:
+        coords = loaded[1]
+        pairs = loaded[2]
+        if pairs is None:
+            cm = contactmap.design_get(session)
+            pairs = assembly.pairs_from_design(cm)
+            if not pairs:
+                raise UserError("trajectory has coords but no pairs, and the "
+                                "active design has no intended_pairs; provide "
+                                "'pairs' in the npz or an occupancy array")
+        features = assembly.featurize_assembly(coords, pairs, cutoff=float(cutoff))
+    msm = assembly.fit_assembly_msm(features, lag=int(lag), n_states=int(n_states),
+                                    backend=backend)
+    out = msm.summary()
+    out["transition_graph"] = msm.transition_graph()
+    return out
+
+
 def cmd_evolve(session, generations=200, k=8, point_rate=0.02, seed=0):
     """Run the Sakana-style recursive-improvement loop on the active
     design's scaffold. Returns the archive + best design + improvement curve.
@@ -275,6 +305,16 @@ _DESC_SHAPE = CmdDesc(
               "backend. target is an optional .npz of target coords for an "
               "RMSD. Example: origami shape n_ensemble 8 target cube.npz"),
 )
+_DESC_ASSEMBLY_MSM = CmdDesc(
+    required=[("path", OpenFileNameArg)],
+    keyword=[("lag", IntArg), ("n_states", IntArg), ("cutoff", FloatArg),
+             ("backend", EnumOf(["auto", "deeptime", "numpy"]))],
+    synopsis=("Markov state model of an oxDNA assembly trajectory (.npz with "
+              "'occupancy' or 'coords'). Recovers folding-intermediate states "
+              "+ kinetic traps via the same featurize->VAMPnet/MSM pipeline as "
+              "chimerax-vampnet. Example: origami assembly_msm fold.npz lag 5 "
+              "n_states 3"),
+)
 _DESC_EVOLVE = CmdDesc(
     keyword=[("generations", IntArg), ("k", IntArg),
              ("point_rate", FloatArg), ("seed", IntArg)],
@@ -312,6 +352,7 @@ def register_commands(logger):
     register("origami network", _DESC_NETWORK, cmd_network, logger=logger)
     register("origami envelope", _DESC_ENVELOPE, cmd_envelope, logger=logger)
     register("origami shape", _DESC_SHAPE, cmd_shape, logger=logger)
+    register("origami assembly_msm", _DESC_ASSEMBLY_MSM, cmd_assembly_msm, logger=logger)
     register("origami evolve", _DESC_EVOLVE, cmd_evolve, logger=logger)
     register("origami report", _DESC_REPORT, cmd_report, logger=logger)
     register("origami save", _DESC_SAVE, cmd_save, logger=logger)

@@ -26,11 +26,17 @@ origami frustration
 #    Pass target <shape.npz> to also get a Kabsch RMSD to a target.
 origami shape n_ensemble 8
 
-# 7. Recursive self-improvement: evolve a lower-frustration scaffold.
+# 7. Markov state model of an oxDNA assembly trajectory — the method bridge
+#    to chimerax-vampnet. Recovers folding intermediates + kinetic traps
+#    (off-target basins) via the same featurize->MSM pipeline vampnet uses
+#    for protein conformational dynamics.
+origami assembly_msm examples/data/demo_assembly.npz lag 5 n_states 3
+
+# 8. Recursive self-improvement: evolve a lower-frustration scaffold.
 origami evolve generations 400 seed 0
 
-# 8. Plan a virus-inspired lipid-bilayer delivery envelope.
+# 9. Plan a virus-inspired lipid-bilayer delivery envelope.
 origami envelope density 180
 
-# 9. Emit the scaffoldselector-style HTML report.
+# 10. Emit the scaffoldselector-style HTML report.
 origami report examples/data/demo_report.html
