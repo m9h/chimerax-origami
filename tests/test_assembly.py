@@ -79,5 +79,9 @@ def test_featurize_assembly_from_coords():
 
 
 def test_pairs_from_design():
-    cm = ContactMap(scaffold="ACGT", intended_pairs=[("sc-st", 0, 5, 1, 12)])
-    assert asm.pairs_from_design(cm) == [(5, 12)]
+    # Global indexing into [scaffold(6), staple0(3), staple1(3)]:
+    #   ("sc-st",0,2,1,1) -> scaffold 2  <-> 6 + 0 + 1 = 7
+    #   ("sc-st",0,4,2,0) -> scaffold 4  <-> 6 + 3 + 0 = 9
+    cm = ContactMap(scaffold="ACGTAC", staples=["AAA", "TTT"],
+                    intended_pairs=[("sc-st", 0, 2, 1, 1), ("sc-st", 0, 4, 2, 0)])
+    assert asm.pairs_from_design(cm) == [(2, 7), (4, 9)]

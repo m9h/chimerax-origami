@@ -62,16 +62,26 @@ def featurize_assembly(coords, pairs, cutoff: float = 2.0):
 
 
 def pairs_from_design(cm) -> List[Tuple[int, int]]:
-    """Extract (i, j) nucleotide-index pairs from a ContactMap's
-    intended_pairs. Each intended pair tuple is (kind, a_strand, a_idx,
-    b_strand, b_idx); for a single-scaffold occupancy feature we use the
-    flat base indices the caller has already resolved. Routing-only designs
-    (no intended_pairs) return [] — supply occupancy directly instead.
+    """Map a ContactMap's intended_pairs to GLOBAL nucleotide indices into a
+    coords array ordered [scaffold, staple1, staple2, ...] — the order
+    md/oxdna_modal.py emits coordinates in.
+
+    Each intended pair is ("sc-st", 0, scaffold_idx, staple_strand,
+    staple_idx) (staple_strand 1-based). Global scaffold index == scaffold_idx
+    (scaffold occupies [0, len(scaffold))); global staple index ==
+    len(scaffold) + sum(len(staples[:strand-1])) + staple_idx. Routing-only
+    designs (no intended_pairs) return [] — supply occupancy directly instead.
     """
+    n_scaf = len(cm.scaffold)
+    offsets = [0]
+    for s in cm.staples:
+        offsets.append(offsets[-1] + len(s))
     pairs = []
     for p in (cm.intended_pairs or []):
         if len(p) >= 5:
-            pairs.append((int(p[2]), int(p[4])))
+            sc_idx, strand, st_idx = int(p[2]), int(p[3]), int(p[4])
+            g_stap = n_scaf + offsets[strand - 1] + st_idx
+            pairs.append((sc_idx, g_stap))
         elif len(p) == 2:
             pairs.append((int(p[0]), int(p[1])))
     return pairs

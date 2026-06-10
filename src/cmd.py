@@ -7,6 +7,8 @@ contactmap.py / score.py / optimize.py / viz.py / envelope.py / evolve.py;
 this module is the registration + dispatch layer.
 """
 
+import os
+
 from chimerax.core.commands import (
     CmdDesc,
     register,
@@ -38,12 +40,22 @@ def _scored_set(session, scored):
 # ----------------------------------------------------------------------
 # Command implementations.
 # ----------------------------------------------------------------------
-def cmd_load_design(session, path, format="auto"):
+def cmd_load_design(session, path, format="auto", sequence=None):
     """Load a cadnano / scadnano / oxDNA / contactmap design and build its
-    contact map. Returns the design summary dict.
+    contact map. `sequence` (optional) applies a scaffold sequence along the
+    recovered routing — a path to a .txt/.fasta file, or the raw sequence
+    string (e.g. M13mp18). Returns the design summary dict.
     """
     from . import contactmap
-    return contactmap.load_design(session, path, format)
+    seq = None
+    if sequence:
+        if os.path.isfile(sequence):
+            with open(sequence) as fh:
+                lines = [ln.strip() for ln in fh if not ln.startswith(">")]
+            seq = "".join(lines)
+        else:
+            seq = sequence.strip()
+    return contactmap.load_design(session, path, format, scaffold_sequence=seq)
 
 
 def cmd_score(session, k=8):
@@ -264,10 +276,12 @@ def cmd_mcp_stop(session):
 # ----------------------------------------------------------------------
 _DESC_LOAD_DESIGN = CmdDesc(
     required=[("path", OpenFileNameArg)],
-    keyword=[("format", EnumOf(["auto", "cadnano", "scadnano", "oxdna", "contactmap"]))],
+    keyword=[("format", EnumOf(["auto", "cadnano", "scadnano", "oxdna", "contactmap"])),
+             ("sequence", StringArg)],
     synopsis=("Load a DNA-origami design and build its base-pair contact map. "
-              "format=auto infers from extension/content. Example: "
-              "origami load_design rothemund_smiley.json"),
+              "format=auto infers from extension/content. sequence applies a "
+              "scaffold sequence (file path or literal, e.g. M13mp18) along the "
+              "routing. Example: origami load_design smiley.json sequence m13.txt"),
 )
 _DESC_SCORE = CmdDesc(
     keyword=[("k", IntArg)],

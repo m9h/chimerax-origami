@@ -49,7 +49,7 @@ of a misfolded metastable protein state.
 ## Commands
 
 ```
-origami load_design <path> [format auto|cadnano|scadnano|oxdna|contactmap]
+origami load_design <path> [format ...] [sequence m13.txt]  # real cadnano importer
 origami score                       # 4-vector + per-region hotspots
 origami optimize [candidates ...]   # Pareto front over scaffold sequences
 origami frustration                 # color helices/bases by off-target density
@@ -66,10 +66,16 @@ origami mcp serve [port 7346] / stop
 ## Status — v0.1 (scaffold)
 
 Mirrors the chimerax-vampnet module layout 1:1. The off-target k-mer
-scorer and Pareto selector are functional pure-numpy; the cadnano/oxDNA
-geometry parsers and the `envelope` bilayer mesh are stubbed with clearly
-marked TODOs (same convention vampnet used for the MarS-FM / ESMFold2
-adapters pending released checkpoints).
+scorer, Pareto selector, recursive-improvement loop, assembly-MSM bridge,
+and the **cadnano2 `.json` importer** (exact strand routing + base pairing +
+sequence application, incl. skips/insertions/circular scaffolds) are
+functional pure-numpy/Python. Still stubbed with clearly marked TODOs:
+the scadnano/oxDNA parsers, the `envelope` bilayer mesh, and the FM
+backends (`md/*_modal.py`) pending released checkpoints/builds — same
+convention vampnet used for its MarS-FM / ESMFold2 adapters.
+
+See [`VALIDATION.md`](VALIDATION.md) for the real-world test plan
+(reference designs, datasets, and cross-tool checks).
 
 | Module | Role | Mirrors (vampnet) |
 |---|---|---|
