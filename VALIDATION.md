@@ -57,14 +57,24 @@ scaffoldselector's.
   structure and cross-hybridization (MFE, equilibrium pair probabilities).
   Hotspots should coincide.
 
-## 2. Geometric forward model (`shape`, DGNN) vs. oxDNA / CanDo — BLOCKED on checkpoint/compute
+## ✅ 2. Geometric forward model vs. real oxDNA — DONE (`tests/test_oxdna_crossvalidation.py`, `examples/oxdna_validation.py`)
 
-Needs the DGNN checkpoint (unreleased) or a real oxDNA relaxation to compare
-against. `oxpy` now imports in this env, so the feasible next step is: convert
-a cadnano design to oxDNA topology, relax it, and compare Kabsch RMSD / Rg to
-`shape`. The current `shape` fallback is a deterministic lattice placeholder,
-so a quantitative RMSD test is only meaningful once the real DGNN (or oxDNA
-reference) is wired.
+Ran a **real oxDNA simulation** (built from source; 2×10⁵ MD steps on the
+caca.json origami, 608 nucleotides, ~70 s CPU). Three results:
+- **Independent cross-validation:** our cadnano importer and **tacoxDNA** (a
+  completely separate parser) agree EXACTLY on the topology — 608 nucleotides,
+  6 strands, per-strand lengths [42,42,42,42,150,290]. (Pinned in CI from the
+  vendored `caca.json.top`, no oxDNA needed.)
+- **Folding validation:** **290 / 290** intended base pairs form in the relaxed
+  oxDNA structure (100% at the calibrated base-site threshold) — the design
+  folds exactly as the importer's `intended_pairs` predict.
+- **Geometry:** the real folded structure has **Rg ≈ 6.8 nm**; the `shape`
+  fallback predicts ~28.8 nm — it over-predicts ~4× because it's a placeholder
+  lattice that lays the scaffold out linearly rather than folding. This
+  quantifies the gap the real DGNN (`md/gnn_shape_modal.py`) would close; a
+  meaningful RMSD test awaits that checkpoint.
+
+Remaining: per-residue RMSF vs CanDo, and the DGNN RMSD once a checkpoint exists.
 
 - **RMSD to oxDNA.** Relax each reference design in **oxDNA** (oxDNA.org or
   local CUDA) and compare the predicted shape (Kabsch RMSD, radius of gyration)
