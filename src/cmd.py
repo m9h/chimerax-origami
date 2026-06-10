@@ -214,6 +214,24 @@ def cmd_assembly_msm(session, path, lag=5, n_states=3, cutoff=2.0, backend="auto
     return out
 
 
+def cmd_fold_msm(session, n_frames=3000, lag=5, n_states=3, seed=0, k=8):
+    """Predict the folding MSM of the active design WITHOUT oxDNA: a cheap
+    kinetic emulator (driven by the static off-target score) generates an
+    assembly trajectory, then the same MSM pipeline as `assembly_msm` recovers
+    folding-intermediate states, traps, and the predicted folding yield.
+    Returns the MSM summary + folding_yield + transition graph.
+    """
+    from . import contactmap, assembly
+    cm = contactmap.design_get(session)
+    feats = assembly.simulate_folding(cm, n_frames=int(n_frames), seed=int(seed), k=int(k))
+    msm = assembly.fit_assembly_msm(feats, lag=int(lag), n_states=int(n_states),
+                                    backend="auto")
+    out = msm.summary()
+    out["folding_yield"] = float(feats[feats.shape[0] // 2:].mean())
+    out["transition_graph"] = msm.transition_graph()
+    return out
+
+
 def cmd_evolve(session, generations=200, k=8, point_rate=0.02, seed=0):
     """Run the Sakana-style recursive-improvement loop on the active
     design's scaffold. Returns the archive + best design + improvement curve.
@@ -359,6 +377,14 @@ _DESC_ASSEMBLY_MSM = CmdDesc(
               "chimerax-vampnet. Example: origami assembly_msm fold.npz lag 5 "
               "n_states 3"),
 )
+_DESC_FOLD_MSM = CmdDesc(
+    keyword=[("n_frames", IntArg), ("lag", IntArg), ("n_states", IntArg),
+             ("seed", IntArg), ("k", IntArg)],
+    synopsis=("Predict the active design's folding MSM without oxDNA via a "
+              "score-driven kinetic emulator. Returns folding-intermediate "
+              "states, traps, and predicted folding yield. Example: origami "
+              "fold_msm n_frames 3000 lag 5"),
+)
 _DESC_EVOLVE = CmdDesc(
     keyword=[("generations", IntArg), ("k", IntArg),
              ("point_rate", FloatArg), ("seed", IntArg)],
@@ -398,6 +424,7 @@ def register_commands(logger):
     register("origami envelope", _DESC_ENVELOPE, cmd_envelope, logger=logger)
     register("origami shape", _DESC_SHAPE, cmd_shape, logger=logger)
     register("origami assembly_msm", _DESC_ASSEMBLY_MSM, cmd_assembly_msm, logger=logger)
+    register("origami fold_msm", _DESC_FOLD_MSM, cmd_fold_msm, logger=logger)
     register("origami evolve", _DESC_EVOLVE, cmd_evolve, logger=logger)
     register("origami report", _DESC_REPORT, cmd_report, logger=logger)
     register("origami save", _DESC_SAVE, cmd_save, logger=logger)

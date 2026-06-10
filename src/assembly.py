@@ -39,6 +39,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import List, Optional, Tuple
 
+from .score import score
+
 
 # ----------------------------------------------------------------------
 # Featurization — the contact map becomes the VAMPnet feature.
@@ -306,6 +308,83 @@ def load_trajectory(path: str):
         pairs = d["pairs"].tolist() if "pairs" in d.files else None
         return ("coords", d["coords"], pairs)
     raise ValueError("npz must contain 'occupancy' or 'coords'")
+
+
+def simulate_folding(cm, n_frames: int = 3000, seed: int = 0, k: int = 8,
+                     base_fold: float = 0.05, base_trap: float = 0.04,
+                     trap_escape: float = 0.02, unfold: float = 0.002):
+    """Cheap kinetic folding EMULATOR driven by the static off-target score —
+    the bridge that turns a design (with a real scaffold sequence) into an
+    assembly trajectory without oxDNA.
+
+    Each staple is a folding domain in one of {unfolded, trapped, folded}. A
+    domain's trap-entry rate rises with its LOCAL off-target frustration
+    (computed from score.py's hotspots mapped onto the scaffold bases the
+    domain pairs with), so the trap structure of the trajectory EMERGES from
+    the scorer rather than being hand-set. Returns (n_frames, n_pairs)
+    contact occupancy for fit_assembly_msm.
+
+    This is a coarse emulator for prototyping / the cheap forward model, NOT a
+    substitute for oxDNA — quantitative work should use md/oxdna_modal.py. Its
+    purpose is to make the thesis testable: more static frustration -> more
+    kinetic traps (see tests/test_assembly_validation.py).
+    """
+    import numpy as np
+    sd = score(cm, k=k)
+    L = len(cm.scaffold)
+    # per-scaffold-base frustration from j1 (staple<->scaffold) + j2 (scaffold self)
+    fb = np.zeros(L)
+    for (i, p, kk) in sd.hotspots.get("j2", []):
+        fb[i:i + kk] += 1.0
+        if 0 <= p < L:
+            fb[p:p + kk] += 1.0
+    for h in sd.hotspots.get("j1", []):
+        if len(h) >= 5:
+            pj, kk = h[3], h[4]
+            if 0 <= pj < L:
+                fb[pj:pj + kk] += 1.0
+
+    n_dom = max(len(cm.staples), 1)
+    dom_frust = np.zeros(n_dom)
+    dom_size = np.zeros(n_dom)
+    dom_pairs = [[] for _ in range(n_dom)]
+    for idx, (_, _, sc_idx, strand, _st) in enumerate(cm.intended_pairs):
+        d = strand - 1
+        if 0 <= d < n_dom:
+            dom_frust[d] += fb[sc_idx] if sc_idx < L else 0.0
+            dom_size[d] += 1.0
+            dom_pairs[d].append(idx)
+    # ABSOLUTE per-base frustration -> trap multiplier (no mean normalization,
+    # so a globally more-frustrated design really does trap more). gain sets
+    # how strongly off-target slows folding.
+    gain = 2.0
+    dom_mult = 1.0 + gain * (dom_frust / np.maximum(dom_size, 1.0))
+
+    rng = np.random.default_rng(seed)
+    n_pairs = max(len(cm.intended_pairs), 1)
+    dom_of_pair = np.full(n_pairs, -1, dtype=np.int64)
+    for d in range(n_dom):
+        for idx in dom_pairs[d]:
+            dom_of_pair[idx] = d
+    valid = dom_of_pair >= 0
+
+    state = np.zeros(n_dom, dtype=np.int64)   # 0=U, 1=Trapped, 2=Folded
+    p_trap = base_trap * dom_mult
+    feats = np.zeros((n_frames, n_pairs), dtype=np.float32)
+    for t in range(n_frames):
+        # occupancy: folded domains -> 1, trapped -> 0.5, unfolded -> 0.
+        occ_level = np.where(state == 2, 1.0, np.where(state == 1, 0.5, 0.0))
+        p = np.zeros(n_pairs)
+        p[valid] = occ_level[dom_of_pair[valid]]
+        feats[t] = (rng.random(n_pairs) < p).astype(np.float32)
+        # per-domain CTMC step (states disjoint, so one draw per domain).
+        r = rng.random(n_dom)
+        U, T, F = state == 0, state == 1, state == 2
+        state[U & (r < p_trap)] = 1
+        state[U & (r >= p_trap) & (r < p_trap + base_fold)] = 2
+        state[T & (r < trap_escape)] = 0
+        state[F & (r < unfold)] = 0
+    return feats
 
 
 def synthetic_assembly_trajectory(n_frames: int = 2000, n_pairs: int = 30,

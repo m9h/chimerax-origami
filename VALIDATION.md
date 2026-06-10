@@ -69,7 +69,23 @@ scaffoldselector's.
 - **Known floppy vs. rigid designs.** A design with a deliberate flexible hinge
   (e.g. a DNA-origami hinge/box lid) should show a localized RMSF hotspot.
 
-## 3. Assembly MSM bridge (`assembly_msm`) vs. published folding studies
+## ✅ 3. Assembly MSM bridge — core DONE (`tests/test_assembly_validation.py`, `examples/thesis_validation_demo.py`)
+
+- **MSM validity:** the slowest implied timescale is flat across lag (14.3–14.6
+  over lags 4–10) — the recovered MSM is Markovian.
+- **The project thesis, validated:** added a cheap score-driven kinetic folding
+  emulator (`assembly.simulate_folding`, surfaced as `origami fold_msm`) so a
+  design's folding MSM can be predicted without oxDNA. Across a frustration
+  gradient, **static off-target frustration anti-correlates with folding yield
+  at Spearman −1.0** (yield 0.72 → 0.56 as off-target rises). The link is
+  non-circular: sequence → `score` → localized per-domain frustration →
+  kinetics → yield. This is the same quantity test 6 checks against the wet lab.
+
+Remaining (needs oxDNA): replace the emulator with real annealing trajectories
+(`md/oxdna_modal.py` / Snodin–Doye sets); `oxpy` now imports in this env, so a
+small real-trajectory check is feasible next.
+
+## 3b. Original plan — vs. published folding studies
 
 - **oxDNA folding/annealing trajectories.** Generate real folding trajectories
   (the `md/oxdna_modal.py` annealing protocol, or published sets such as the
