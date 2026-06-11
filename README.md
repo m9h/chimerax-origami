@@ -148,6 +148,14 @@ larger map. Lines worth tracking / building toward:
 - **Geometry compilers (inverse design of routing):** DAEDALUS / PERDIX / TALOS / ATHENA / vHelix — automated scaffold routing from a target mesh; the geometric counterpart to `evolve.py`'s sequence optimization.
 - **DNA data storage & digital-twin lines** (Krasnogor / GitLife): version control for cell engineering, DNA-based data structures — a different application of the same off-target-aware sequence design.
 
+## Current directions (2026 preprints — where the field is now)
+
+What the groups behind this stack are working on right now, and where it plugs in:
+
+- **Douglas Lab (UCSF) — origami at the membrane.** *Using DNA origami to study nanoscale organization of plasma membranes* (Corradi … Douglas & Giannone, [bioRxiv 2026](https://www.biorxiv.org/content/10.1101/2025.08.27.672545v2)): fluorescent origami probes that insert into the plasma membrane via **lipid anchors whose number and spatial distribution are defined by the origami** — to map membrane nanodomains. This is the real version of `envelope.py`'s lipid-handle placement, and the membrane interface that ties to the Notch membrane-receptor target in chimerax-vampnet.
+- **ML stability dataset.** *Predicting DNA origami stability in physiological media by machine learning* ([bioRxiv 2025](https://www.biorxiv.org/content/10.1101/2025.07.18.665506v1)): ~1,417 origami characterized by DLS diffusion coefficient (a stability proxy) → ML prediction. A concrete *measured* dataset (stability, not yield) to extend test 6 against a second property — what `envelope` predicts (nuclease/in-vivo stability) made quantitative.
+- **Generative grammar of origami.** *Algebraic and Generative Design of DNA Origami via Origami Monoids* ([bioRxiv 2025](https://www.biorxiv.org/content/10.1101/2025.09.13.675984v1)): a SeqVAE over a Jones-monoid algebra of crossover arrangements — a complementary inverse-design engine to `generate.py`'s diffusion router, and another source of routings to score/shape/fold.
+
 ## References
 
 - Shirt-Ediss, Torelli, Navarro & Krasnogor. *Optimising DNA origami assembly by reducing off-target interactions.* Nat Commun (2026). https://www.nature.com/articles/s41467-026-73387-4
