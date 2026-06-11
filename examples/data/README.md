@@ -11,6 +11,7 @@
 | `caca.json.top` | tacoxDNA output for `caca.json` (same source) | oxDNA topology; importer cross-validation (test 2) |
 | `krasnogor_variants/*.sc` | [Zenodo 14748478](https://zenodo.org/records/14748478) (Krasnogor *Nat Commun* 2026) | 3 triangle + 3 rectangle scaffold variants (scadnano); wet-lab yield validation (test 6) |
 | `krasnogor_measured.csv` | extracted from the paper's Fig. 7 source data + supplementary | per-variant optical-tweezers measurements + blinded-name mapping (T1=DEER, T2=LION, T3=BEAR; R1=GOAT, R2=LAMB, R3=MOLE) |
+| `douglas_designs/*.json` | [douglaslab/cadnano-designs](https://github.com/douglaslab/cadnano-designs) (UCSF, cadnano creators) | curated subset of the Douglas Lab corpus (2009 Nature/Science, 2018 pScaf); importer robustness (test 0). Full corpus: 76/76 designs parse, 1.2M nt |
 
 The two cadnano files are canonical community test designs redistributed from
 the cadnano2 repository (these same files also ship with cadnano2.5 and appear
