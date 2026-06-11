@@ -1,0 +1,7 @@
+codename,paper_label,shape,scaffold_len,unfolding_force,non_uniformity,n_molecules
+DEER,T1,triangle,2410,40.996,0.199,379
+LION,T2,triangle,2410,37.442,0.245,466
+BEAR,T3,triangle,2410,44.011,0.263,742
+GOAT,R1,rectangle,2484,,,
+LAMB,R2,rectangle,2484,,,
+MOLE,R3,rectangle,2484,,,

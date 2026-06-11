@@ -9,6 +9,8 @@
 | `m13mp18.txt` | [lcbb/pyDAEDALUS](https://github.com/lcbb/pyDAEDALUS) | M13mp18 scaffold sequence (7249 nt); scorer validation (test 1) |
 | `caca.json` | [oxDNA](https://github.com/lorenzo-rovigatti/oxDNA) `examples/NEW_RELAX_PROCEDURE/` | small cadnano origami (290-nt scaffold, 5 staples, 608 nt) |
 | `caca.json.top` | tacoxDNA output for `caca.json` (same source) | oxDNA topology; importer cross-validation (test 2) |
+| `krasnogor_variants/*.sc` | [Zenodo 14748478](https://zenodo.org/records/14748478) (Krasnogor *Nat Commun* 2026) | 3 triangle + 3 rectangle scaffold variants (scadnano); wet-lab yield validation (test 6) |
+| `krasnogor_measured.csv` | extracted from the paper's Fig. 7 source data + supplementary | per-variant optical-tweezers measurements + blinded-name mapping (T1=DEER, T2=LION, T3=BEAR; R1=GOAT, R2=LAMB, R3=MOLE) |
 
 The two cadnano files are canonical community test designs redistributed from
 the cadnano2 repository (these same files also ship with cadnano2.5 and appear
