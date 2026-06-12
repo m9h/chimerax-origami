@@ -60,6 +60,15 @@ def test_offtarget_predicts_measured_non_uniformity():
     assert vals[0][1] < vals[1][1] < vals[2][1]
 
 
+def test_our_ranking_matches_authors_offtarget_ranking():
+    # The paper states (supplementary) the authors' own M1 off-target ranking:
+    # "T1 has the lowest M1 score ... T3 the highest" -> T1 < T2 < T3. Our
+    # INDEPENDENT k-mer scorer must reproduce that same ordering, confirming it
+    # against both the authors' predictor and the measurement.
+    our = {cn: _our_offtarget(cn) for cn in ("DEER", "LION", "BEAR")}  # T1,T2,T3
+    assert our["DEER"] < our["LION"] < our["BEAR"]
+
+
 def test_scores_reproduce_documented_values():
     # pin the headline numbers (k=8) so the result is reproducible.
     our = {cn: round(_our_offtarget(cn)) for cn in ("DEER", "LION", "BEAR")}

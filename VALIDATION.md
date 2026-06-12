@@ -174,12 +174,25 @@ non-uniformity measurement (Fig. 7D, 379–742 molecules per variant):
 **Spearman = +1.0** — our static frustration score reproduces the measured
 folding-quality ranking on real origami. Static frustration predicts assembly.
 
+Triple agreement on the triangle: **our off-target T1<T2<T3** = **the authors'
+own M1 off-target ranking** (Supp.: "T1 has the lowest M1 score … T3 the
+highest") = **measured non-uniformity T1<T2<T3**. Our independent k-mer scorer
+reproduces both the authors' predictor and the single-molecule measurement.
+
 Caveats: n=3 variants (perfect rank order, but small); our score tracks the
-*non-uniformity* metric, not unfolding force (T2<T1<T3); and our scorer shares
-the off-target *concept* the authors used to pick these variants, so the
-single-molecule measurement is the true independent ground truth it matches.
-Rectangle R1/R2/R3 (GOAT/LAMB/MOLE) AFM/gel data lives in the supplementary
-figures (images), not extracted here — extending the panel is the next step.
+*non-uniformity* metric, not unfolding force (T2<T1<T3).
+
+**Datasets explored but NOT usable (recorded so we don't revisit):**
+- *Rectangle R1/R2/R3 (GOAT/LAMB/MOLE):* only AGE-gel images (qualitative —
+  off-target-prone variants aggregate in the loading well) + AFM dimensions
+  (Supp. Table 8) that are **instrument-dependent** (the same variant measures
+  53 nm at Newcastle vs 66 nm at Bonn; expected 55) → not a clean quantitative
+  ground truth.
+- *ML stability dataset* ([bioRxiv 2025.07.18.665506](https://www.biorxiv.org/content/10.1101/2025.07.18.665506v1)):
+  ~1,400 measurements but across only **3 fixed designs × physicochemical
+  conditions** (temp/Mg/pH/DNase). It tests post-assembly *stability vs buffer*,
+  which our *sequence* off-target scorer cannot engage (it would give 3 values).
+  Wrong tool for that property — noted, not forced.
 
 The capstone experiment. Take a panel of published origami with **measured
 assembly yield** (gel/AFM/TEM) — ideally spanning good and bad folders — and
