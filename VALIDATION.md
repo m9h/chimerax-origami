@@ -125,9 +125,19 @@ budget** (mean 0.0 vs 5.0 at 20 generations on a hard seed). Validation
 surfaced — and fixed — a real weakness: the guided mutator picked a *random*
 window, making it slower than whole-sequence random mutation on long
 scaffolds; it now **targets the worst-frustrated window** (`Evo2Mutator`
-gained an `explore` knob), which is what makes it win. The real Evo 2
-plausibility check (natural >> shuffled log-likelihood) remains
-checkpoint-pending; the surrogate isolates the guided-selection benefit.
+gained an `explore` knob), which is what makes it win.
+
+**Real Evo 2 now wired and verified** (was checkpoint-pending). `local_backend`
+loads `arcinstitute/evo2_1b_base` (StripedHyena-2) and runs on the user's **GB10
+(Blackwell, sm_121)** inside `nvcr.io/nvidia/pytorch:26.05-py3` (flash-attn + TE
+ship in the image). Results from `examples/evo2_local_run.py`:
+- **Plausibility:** natural M13 fragments score higher Evo 2 log-likelihood than
+  shuffled — **−1.327 vs −1.382, 5/5**.
+- **Real ablation (20 gens):** Evo 2-guided evolution reaches **lower off-target
+  (2 vs 4)** *and* keeps the winning scaffold **more natural (Evo 2 LL −1.404 vs
+  −1.409)** than random — the FM prior steers toward genome-plausible sequences
+  while still minimizing frustration. (GPU/container run, not in CI; the
+  `FakeEvo2` surrogate keeps the ablation logic tested in CI.)
 
 ## 4b. Original plan — vs. random + scaffoldselector
 
