@@ -128,16 +128,26 @@ scaffolds; it now **targets the worst-frustrated window** (`Evo2Mutator`
 gained an `explore` knob), which is what makes it win.
 
 **Real Evo 2 now wired and verified** (was checkpoint-pending). `local_backend`
-loads `arcinstitute/evo2_1b_base` (StripedHyena-2) and runs on the user's **GB10
-(Blackwell, sm_121)** inside `nvcr.io/nvidia/pytorch:26.05-py3` (flash-attn + TE
-ship in the image). Results from `examples/evo2_local_run.py`:
+loads Evo 2 (StripedHyena-2) and runs on the user's **GB10 (Blackwell, sm_121)**
+inside `nvcr.io/nvidia/pytorch:26.05-py3` (flash-attn + TE ship in the image);
+`EVO2_SIZE` selects 1b/7b. Results from `examples/evo2_local_run.py`:
+
+| | evo2_1b_base | evo2_7b |
+|---|---|---|
+| natural M13 LL | −1.327 | **−1.189** |
+| shuffled LL | −1.382 | −1.376 |
+| natural−shuffled gap | 0.055 | **0.187** |
+| guided winner LL | −1.404 | **−1.250** |
+| random winner LL | −1.409 | −1.385 |
+
 - **Plausibility:** natural M13 fragments score higher Evo 2 log-likelihood than
-  shuffled — **−1.327 vs −1.382, 5/5**.
+  shuffled, **5/5** at both sizes; the 7B gap is ~3.4× sharper.
 - **Real ablation (20 gens):** Evo 2-guided evolution reaches **lower off-target
-  (2 vs 4)** *and* keeps the winning scaffold **more natural (Evo 2 LL −1.404 vs
-  −1.409)** than random — the FM prior steers toward genome-plausible sequences
-  while still minimizing frustration. (GPU/container run, not in CI; the
-  `FakeEvo2` surrogate keeps the ablation logic tested in CI.)
+  (2 vs 4)** *and* keeps the winning scaffold **more natural** than random — and
+  with 7B the guided−random naturalness gap is ~27× larger (the stronger prior
+  steers much harder toward genome-plausible sequences while still minimizing
+  frustration). GPU/container run, not in CI; the `FakeEvo2` surrogate keeps the
+  ablation logic tested in CI.
 
 ## 4b. Original plan — vs. random + scaffoldselector
 

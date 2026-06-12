@@ -40,8 +40,9 @@ DATA = os.path.join(os.path.dirname(__file__), "data")
 
 
 def main():
-    print("Loading real Evo 2 (evo2_1b_base) on GPU ...", flush=True)
-    backend = local_backend("1b")
+    size = os.environ.get("EVO2_SIZE", "1b")    # "1b" | "7b" | "40b"
+    print(f"Loading real Evo 2 (evo2_{size}) on GPU ...", flush=True)
+    backend = local_backend(size)
 
     # A. Plausibility -------------------------------------------------------
     m13 = "".join(c for c in open(os.path.join(DATA, "m13mp18.txt")).read()
