@@ -40,19 +40,25 @@ exposed as remote functions:
                      flanking prefix (Evo 2 is a causal LM). The "generate"
                      mode of Evo2Mutator.
 
-USAGE
-  # one-off scoring from the CLI (sanity check the image):
-  modal run md/evo2_modal.py::score_cli --seqs "ACGTACGT...,GGGGCCCC..."
+USAGE (cloud — this is how to run 40B, which OOMs on the single GB10)
+  pip install modal && modal setup            # one-time auth
+  # one command: plausibility check at the chosen size on a cloud GPU.
+  EVO2_MODEL_SIZE=40b modal run md/evo2_modal.py     # -> H200, ~$1–1.5
+  EVO2_MODEL_SIZE=7b  modal run md/evo2_modal.py     # -> H100
 
-  # tight-loop use from evolve.py: deploy once, then the client looks the
-  # functions up by name (avoids per-call cold start):
-  modal deploy md/evo2_modal.py
-  # then in Python:
+  # tight-loop use from evolve.py: deploy once, then the client binds by name:
+  EVO2_MODEL_SIZE=40b modal deploy md/evo2_modal.py
   from md.evo2_modal import Evo2Backend
   from src.evolve import evolve, Evo2Mutator
-  backend = Evo2Backend()                  # binds to the deployed app
+  backend = Evo2Backend()
   result = evolve(seed_cm, generations=300,
                   mutator=Evo2Mutator(backend=backend, mode="score"))
+
+COST (Modal, per-second billing, no idle charge; ~$30/mo free credits)
+  40B on 1×H200 ($4.54/hr): one run (download+load+score) ~$1–1.5; cached re-run <$1.
+  7B on 1×H100 ($3.95/hr): ~$0.50/run. The 77 GB checkpoint persists in the
+  'evo2-weights' Modal Volume so it downloads only once.
+  Locally: 1B/7B run free on the GB10; 40B does NOT fit (see Status).
 """
 
 from __future__ import annotations
@@ -66,26 +72,35 @@ except Exception:  # modal is only needed to *define*/run the remote app
 
 
 APP_NAME = "origami-evo2"
-MODEL_SIZE = os.environ.get("EVO2_MODEL_SIZE", "7b")  # "7b" | "40b"
-GPU = "H100" if MODEL_SIZE == "7b" else "H100:2"
+MODEL_SIZE = os.environ.get("EVO2_MODEL_SIZE", "7b")  # "1b" | "7b" | "40b"
+
+# Single-GPU config that fits each size. 40B (~80 GB weights + activations) fits
+# on ONE H200 (141 GB) — ~$4.54/hr, cheaper than 2×H100 (~$7.90/hr) and no model
+# sharding. KEY: unlike the GB10 (unified memory, where the 77 GB checkpoint
+# host-copy + the 80 GB on-device model OOM'd a single 119 GB pool), Modal GPUs
+# have SEPARATE VRAM and CPU RAM, so the stock loader's peak doesn't collide —
+# 40B that OOM'd locally loads fine here.
+_GPU = {"1b": "A100-40GB", "7b": "H100", "40b": "H200"}
+GPU = _GPU.get(MODEL_SIZE, "H100")
+HF_DIR = "/weights/hf"
 
 if modal is not None:
+    # Reuse the NGC PyTorch image already verified to run Evo 2 (ships torch +
+    # flash-attn + Transformer-Engine) and just add the evo2 package — avoids
+    # building flash-attn from source. If a first `modal deploy` hits an image
+    # issue, the fallback is debian_slim + pip install torch evo2 vortex flash-attn.
     image = (
-        modal.Image.debian_slim(python_version="3.12")
-        .apt_install("git")
-        .pip_install(
-            "torch",
-            "numpy",
-            "einops",
-            "huggingface_hub",
-            # Arc Institute packages providing the StripedHyena-2 model + loader.
-            "evo2",
-            "vortex",
-        )
+        modal.Image.from_registry("nvcr.io/nvidia/pytorch:26.05-py3")
+        .entrypoint([])
+        .pip_install("transformers", "evo2")
+        .env({"HF_HOME": HF_DIR})
     )
+    # Persist HF weights across runs so the 77 GB 40B checkpoint downloads once.
+    weights_vol = modal.Volume.from_name("evo2-weights", create_if_missing=True)
     app = modal.App(APP_NAME)
 else:  # pragma: no cover - lets the file import without modal installed
     image = None
+    weights_vol = None
     app = None
 
 
@@ -105,11 +120,15 @@ def _load_model(model_size: str):
 
 if app is not None:
 
-    @app.cls(image=image, gpu=GPU, timeout=3600, scaledown_window=300)
+    @app.cls(image=image, gpu=GPU, timeout=3600, scaledown_window=300,
+             volumes={HF_DIR: weights_vol})
     class Evo2Service:
         @modal.enter()
         def boot(self):
+            # First call downloads the checkpoint into the mounted Volume;
+            # later cold starts reuse it (no 77 GB re-download).
             self.model = _load_model(MODEL_SIZE)
+            weights_vol.commit()
 
         @modal.method()
         def score(self, seqs):
@@ -147,6 +166,31 @@ if app is not None:
         for s, v in zip(seqs.split(","), scores):
             print(f"{v:+.4f}  {s.strip()[:40]}")
         return scores
+
+    @app.local_entrypoint()
+    def main():
+        """One command:  EVO2_MODEL_SIZE=40b modal run md/evo2_modal.py
+
+        Runs the plausibility check on real M13 (natural vs shuffled) against
+        the chosen model size on the cloud GPU. Reads M13 locally and sends the
+        fragments to the remote scorer, so nothing but sequences leaves the box.
+        """
+        import os as _os
+        import random
+        here = _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__)))
+        m13 = "".join(c for c in open(
+            _os.path.join(here, "examples/data/m13mp18.txt")).read() if c in "ACGT")
+        rng = random.Random(0)
+        nats = [m13[i:i + 500] for i in range(0, 5000, 1000)]
+        shufs = ["".join(rng.sample(s, len(s))) for s in nats]
+        svc = Evo2Service()
+        ns = svc.score.remote(nats)
+        ss = svc.score.remote(shufs)
+        npass = sum(n > s for n, s in zip(ns, ss))
+        print(f"\nEvo 2 ({MODEL_SIZE}, {GPU}) plausibility on real M13:")
+        print(f"  natural  mean LL = {sum(ns)/len(ns):+.4f}")
+        print(f"  shuffled mean LL = {sum(ss)/len(ss):+.4f}")
+        print(f"  natural > shuffled: {npass}/{len(ns)}")
 
 
 class Evo2Backend:
